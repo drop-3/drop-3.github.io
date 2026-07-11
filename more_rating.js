@@ -1,211 +1,193 @@
 (function () {
     'use strict';
 
-    // 1. НАШИ СТИЛИ С МАКСИМАЛЬНЫМ ПРИОРИТЕТОМ (z-index: 9999)
-    let style = document.createElement('style');
+    // ==========================================
+    // 1. НАШИ КАСТОМНЫЕ СТИЛИ (На базе amikdn)
+    // ==========================================
+    var style = document.createElement('style');
     style.innerHTML = `
-        .my-overlay-box {
-            position: absolute !important;
-            z-index: 9999 !important;
-            pointer-events: none !important;
-            font-family: Arial, sans-serif !important;
-            line-height: 1 !important;
+        .card-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
         }
-
-        /* ЛЕВЫЙ ВЕРХНИЙ УГОЛ: Серии + статус */
-        .my-overlay__top-left {
-            top: 6px !important;
-            left: 6px !important;
-            background: rgba(0, 0, 0, 0.85) !important;
-            color: #ffffff !important;
-            padding: 4px 8px !important;
-            border-radius: 6px !important;
-            font-size: 11px !important;
-            font-weight: bold !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 5px !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.8) !important;
+        .card-overlay-item {
+            position: absolute;
+            padding: 3px 6px;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 4px;
+            line-height: 1.2;
         }
-
+        /* Левый верхний: Серии + Точка статуса */
+        .card-overlay-item.top-left {
+            top: 5px;
+            left: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
         .status-dot {
-            width: 8px !important;
-            height: 8px !important;
-            border-radius: 50% !important;
-            display: inline-block !important;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
         }
-        .dot-green { background-color: #00FF66 !important; box-shadow: 0 0 6px #00FF66 !important; }
-        .dot-red   { background-color: #FF3333 !important; box-shadow: 0 0 4px #FF3333 !important; }
+        .dot-green { background-color: #00FF66; box-shadow: 0 0 6px #00FF66; }
+        .dot-red   { background-color: #FF3333; box-shadow: 0 0 4px #FF3333; }
 
-        /* ПРАВЫЙ ВЕРХНИЙ УГОЛ: Год */
-        .my-overlay__top-right {
-            top: 6px !important;
-            right: 6px !important;
-            background: rgba(0, 0, 0, 0.85) !important;
-            color: #dddddd !important;
-            padding: 4px 8px !important;
-            border-radius: 6px !important;
-            font-size: 11px !important;
-            font-weight: bold !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.8) !important;
+        /* Правый верхний: Год */
+        .card-overlay-item.top-right {
+            top: 5px;
+            right: 5px;
+            color: #ddd;
         }
-
-        /* ЛЕВЫЙ НИЖНИЙ УГОЛ: Цветное качество */
-        .my-overlay__quality {
-            bottom: 6px !important;
-            left: 6px !important;
-            padding: 4px 8px !important;
-            border-radius: 6px !important;
-            font-weight: 800 !important;
-            font-size: 11px !important;
-            text-transform: uppercase !important;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.9) !important;
+        
+        /* Левый нижний: ЦВЕТНОЕ КАЧЕСТВО */
+        .card-overlay-item.bottom-left {
+            bottom: 5px;
+            left: 5px;
+            font-weight: 800;
+            font-size: 11px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
         }
-
         .quality-gold { background: #FFC107 !important; color: #000000 !important; }
         .quality-blue { background: #00E5FF !important; color: #000814 !important; }
         .quality-white { background: #F8F9FA !important; color: #1A1A1A !important; }
 
-        /* ПРАВЫЙ НИЖНИЙ УГОЛ: Крупные рейтинги */
-        .my-overlay__rating {
-            bottom: 6px !important;
-            right: 6px !important;
-            background: rgba(0, 0, 0, 0.85) !important;
-            color: #00FF66 !important;
-            padding: 5px 9px !important;
-            border-radius: 6px !important;
-            font-size: 14px !important;
-            font-weight: 800 !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.9) !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
+        /* Правый нижний: КРУПНЫЙ РЕЙТИНГ (для дивана) */
+        .card-overlay-item.bottom-right {
+            bottom: 5px;
+            right: 5px;
+            font-size: 14px !important; /* Увеличенный шрифт! */
+            font-weight: 800;
+            padding: 4px 8px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
-        
-        .rating-good { color: #00FF66 !important; }
-        .rating-mid  { color: #FFC107 !important; }
-        .rating-bad  { color: #FF3333 !important; }
-
-        /* АНИМАЦИЯ */
-        .card.focus .card__view, .card:hover .card__view,
-        .card.focus .card__img, .card:hover .card__img {
-            transform: scale(1.05);
-            box-shadow: 0 10px 25px rgba(0, 229, 255, 0.3) !important;
-            transition: all 0.3s ease;
-        }
+        .rating-green { color: #00FF66 !important; }
+        .rating-yellow { color: #FFC107 !important; }
+        .rating-red { color: #FF3333 !important; }
     `;
     document.head.appendChild(style);
 
-    // Главная функция оформления одной карточки
-    function decorateCard(cardEl, data) {
-        if (!cardEl || !data) return;
-
-        let view = null;
-        if (cardEl.find) {
-            view = cardEl.find('.card__view')[0] || cardEl.find('.card__img')[0] || cardEl[0];
-        } else if (cardEl.querySelector) {
-            view = cardEl.querySelector('.card__view') || cardEl.querySelector('.card__img') || cardEl;
-        }
+    // ==========================================
+    // 2. ОРИГИНАЛЬНАЯ ЛОГИКА AMIKDN
+    // ==========================================
+    function createOverlay(card, data) {
+        if (!card || !data) return;
+        var view = card.querySelector('.card__view');
         if (!view) return;
+        
+        // Чтобы не перерисовывать лишний раз (родная проверка amikdn)
+        if (view.querySelector('.card-overlay')) return;
 
-        // Защита от дублирования
-        if (view.classList.contains('my-overlay-added')) return;
-        view.classList.add('my-overlay-added');
+        var overlay = document.createElement('div');
+        overlay.className = 'card-overlay';
 
-        if (view.style) view.style.position = 'relative';
-
-        // --- 1. ГОД ---
-        let year = data.release_date || data.first_air_date || data.year || data.date;
+        // 1. ГОД (Правый верхний)
+        var year = data.release_date || data.first_air_date || data.year;
         if (year) {
-            let cleanYear = String(year).slice(0, 4);
+            var cleanYear = String(year).slice(0, 4);
             if (cleanYear.length === 4 && !isNaN(cleanYear)) {
-                let yearBox = document.createElement('div');
-                yearBox.className = 'my-overlay-box my-overlay__top-right';
-                yearBox.innerText = cleanYear;
-                view.appendChild(yearBox);
+                var elYear = document.createElement('div');
+                elYear.className = 'card-overlay-item top-right';
+                elYear.innerText = cleanYear;
+                overlay.appendChild(elYear);
             }
         }
 
-        // --- 2. ТИП + СЕРИИ + ТОЧКА СТАТУСА ---
-        let isTv = data.type === 'tv' || data.name || data.number_of_seasons || data.first_air_date;
-        let typeBox = document.createElement('div');
-        typeBox.className = 'my-overlay-box my-overlay__top-left';
-
+        // 2. ТИП / СЕРИИ + ТОЧКА СТАТУСА (Левый верхний) - БЕЗ ОЗВУЧЕК
+        var isTv = data.type === 'tv' || data.name || data.number_of_seasons;
+        var elType = document.createElement('div');
+        elType.className = 'card-overlay-item top-left';
+        
         if (isTv) {
-            let seasonInfo = '';
-            if (data.number_of_seasons) seasonInfo += `S${data.number_of_seasons}`;
-            if (data.number_of_episodes) seasonInfo += ` E${data.number_of_episodes}`;
+            var sInfo = '';
+            if (data.number_of_seasons) sInfo += 'S' + data.number_of_seasons;
+            if (data.number_of_episodes) sInfo += ' E' + data.number_of_episodes;
             
-            let isEnded = data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен';
-            let dotClass = isEnded ? 'dot-red' : 'dot-green';
-
-            typeBox.innerHTML = `СЕРИАЛ ${seasonInfo} <span class="status-dot ${dotClass}"></span>`;
+            var isEnded = data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен';
+            var dotClass = isEnded ? 'dot-red' : 'dot-green';
+            
+            elType.innerHTML = 'СЕРИАЛ ' + sInfo + ' <span class="status-dot ' + dotClass + '"></span>';
         } else {
-            typeBox.innerText = 'ФИЛЬМ';
+            elType.innerText = 'ФИЛЬМ';
         }
-        view.appendChild(typeBox);
+        overlay.appendChild(elType);
 
-        // --- 3. ЦВЕТНОЕ КАЧЕСТВО ---
-        let quality = data.quality || data.hd || (data.rip ? 'DVDRip' : '');
+        // 3. ЦВЕТНОЕ КАЧЕСТВО (Левый нижний)
+        var quality = data.quality || data.hd || (data.rip ? 'DVDRip' : '');
         if (quality) {
-            let qText = String(quality).toUpperCase();
-            let colorClass = 'quality-white';
-
-            if (qText.includes('4K') || qText.includes('2160') || qText.includes('UHD')) {
-                colorClass = 'quality-gold';
-            } else if (qText.includes('1080') || qText.includes('FHD') || qText.includes('BLU') || qText.includes('BDRIP')) {
-                colorClass = 'quality-blue';
+            var qText = String(quality).toUpperCase();
+            var qClass = 'quality-white';
+            if (qText.indexOf('4K') !== -1 || qText.indexOf('2160') !== -1 || qText.indexOf('UHD') !== -1) {
+                qClass = 'quality-gold';
+            } else if (qText.indexOf('1080') !== -1 || qText.indexOf('FHD') !== -1 || qText.indexOf('BLU') !== -1 || qText.indexOf('BDRIP') !== -1) {
+                qClass = 'quality-blue';
             }
-
-            let qualityBox = document.createElement('div');
-            qualityBox.className = `my-overlay-box my-overlay__quality ${colorClass}`;
-            qualityBox.innerText = qText;
-            view.appendChild(qualityBox);
+            var elQuality = document.createElement('div');
+            elQuality.className = 'card-overlay-item bottom-left ' + qClass;
+            elQuality.innerText = qText;
+            overlay.appendChild(elQuality);
         }
 
-        // --- 4. КРУПНЫЙ РЕЙТИНГ ---
-        let rating = data.kp_rating || data.rating_kp || data.imdb_rating || data.rating_imdb || data.vote_average || data.rating;
+        // 4. КРУПНЫЙ РЕЙТИНГ (Правый нижний) - БЕЗ ВОЗРАСТА И ПРОГРЕССА
+        var rating = data.kp_rating || data.rating_kp || data.imdb_rating || data.rating_imdb || data.vote_average || data.rating;
         if (rating && parseFloat(rating) > 0) {
-            let cleanRating = parseFloat(rating).toFixed(1);
-            
-            let ratingColorClass = 'rating-good';
-            if (cleanRating < 5.0) ratingColorClass = 'rating-bad';
-            else if (cleanRating < 7.0) ratingColorClass = 'rating-mid';
+            var cleanRating = parseFloat(rating).toFixed(1);
+            var rClass = 'rating-green';
+            if (cleanRating < 5.0) rClass = 'rating-red';
+            else if (cleanRating < 7.0) rClass = 'rating-yellow';
 
-            let ratingBox = document.createElement('div');
-            ratingBox.className = `my-overlay-box my-overlay__rating ${ratingColorClass}`;
-            ratingBox.innerText = cleanRating;
-            view.appendChild(ratingBox);
+            var elRating = document.createElement('div');
+            elRating.className = 'card-overlay-item bottom-right ' + rClass;
+            elRating.innerText = cleanRating;
+            overlay.appendChild(elRating);
         }
+
+        view.appendChild(overlay);
     }
 
-    // 2. ОТСЛЕЖИВАЕМ НОВЫЕ КАРТОЧКИ В РЕАЛЬНОМ ВРЕМЕНИ
-    Lampa.Listener.follow('card', function (e) {
-        try {
-            if (e.render && (e.object || e.data)) {
-                decorateCard(e.render, e.object || e.data);
-            }
-        } catch (err) {
-            console.error('Ошибка в обработчике card:', err);
-        }
-    });
+    // ==========================================
+    // 3. РОДНЫЕ ОБРАБОТЧИКИ СОБЫТИЙ (1 в 1 как у amikdn!)
+    // ==========================================
+    function init() {
+        if (!window.Lampa) return;
 
-    // 3. АВТОЗАХВАТ: Пробегаемся по уже открытым карточкам на экране (если плагин загрузился с опозданием)
-    setTimeout(function() {
-        let count = 0;
-        if (window.Lampa && window.Lampa.Activity) {
-            let active = window.Lampa.Activity.active();
-            if (active && active.activity && active.activity.render) {
-                active.activity.render().find('.card').each(function() {
-                    let cardEl = $(this);
-                    // Вытаскиваем данные фильма, прикрепленные к карточке Лампой
-                    let data = cardEl.data('data') || cardEl.data('card') || (cardEl[0] && cardEl[0].card_data);
-                    if (data) {
-                        decorateCard(cardEl, data);
-                        count++;
-                    }
-                });
+        // Главный секрет стабильности amikdn: слушаем все возможные варианты отрисовки!
+        Lampa.Listener.follow('card', function (e) {
+            if (e.render) createOverlay(e.render, e.object || e.data);
+        });
+
+        Lampa.Listener.follow('new_card', function (e) {
+            if (e.render) createOverlay(e.render, e.data);
+        });
+
+        Lampa.Listener.follow('create', function (e) {
+            if (e.type === 'card' && e.render) createOverlay(e.render, e.object || e.data);
+        });
+
+        Lampa.Listener.follow('render_card', function (e) {
+            if (e.render) createOverlay(e.render, e.data);
+        });
+    }
+
+    if (window.Lampa) {
+        init();
+    } else {
+        var timer = setInterval(function () {
+            if (window.Lampa) {
+                clearInterval(timer);
+                init();
             }
-        }
-        console.log(`🔥🔥 Кастомный оверлей v3.0 (АБСОЛЮТНАЯ ПОБЕДА) успешно запущен! Обработано старых карточек: ${count} 🔥🔥`);
-    }, 1000);
+        }, 200);
+    }
 
 })();
