@@ -3188,43 +3188,115 @@
         document.head.appendChild(style);
     }
 
-    // Принудительно обновляем стили несколько раз, чтобы точно перекрыть загрузку amikdn
-    applyMySuperStyles();
-    setTimeout(applyMySuperStyles, 1000);
-    setTimeout(applyMySuperStyles, 3000);
+    // =========================================================================
+// ЯДЕРНЫЙ ТУРБО-ХВОСТ v2 (Абсолютный приоритет над любыми темами Лампы)
+// =========================================================================
+(function () {
+    'use strict';
 
-    // 2. Фоновый радар: автоматически находит слово "Сериал" и зажигает точку
-    setInterval(function () {
-        applyMySuperStyles();
-        var typeBoxes = document.querySelectorAll('.card .card__type:not(.my-dot-added), .card .card__episode-label:not(.my-dot-added)');
-        for (var i = 0; i < typeBoxes.length; i++) {
-            var box = typeBoxes[i];
-            box.classList.add('my-dot-added');
+    function applyNuclearStyles() {
+        if (document.getElementById('nuclear-turbo-styles')) return;
+        var style = document.createElement('style');
+        style.id = 'nuclear-turbo-styles';
+        style.innerHTML = `
+            /* 1. БРОНЕБОЙНЫЙ ШРИФТ РЕЙТИНГА (Размер 16px) */
+            html body .app .card .card__view .card__vote,
+            html body .app .card .card__view .card__vote-line,
+            html body .app .card .card__view .card__vote-separate-wrap .card__vote {
+                font-size: 16px !important;
+            }
+            html body .app .card .card__view .card__vote span:first-child,
+            html body .app .card .card__view .card__vote .rate-value,
+            html body .app .card .card__view .card__vote-line .card__rate-item > div {
+                font-size: 16px !important;
+                font-weight: 900 !important;
+            }
+
+            /* 2. ЧЕРНЫЙ ФОН КАЧЕСТВА (Убиваем желтые квадраты) */
+            html body .app .card .card__view div.card__quality,
+            html body .app .card .card__view div.card__quality[style] {
+                background: rgba(0, 0, 0, 0.85) !important;
+                background-color: rgba(0, 0, 0, 0.85) !important;
+                border: 1px solid rgba(255,255,255,0.1) !important;
+                padding: 3px 6px !important;
+                font-weight: 900 !important;
+                font-size: 12px !important;
+            }
             
-            var card = box.closest('.card');
+            /* Золотой 4K */
+            html body .app .card .card__view div.card__quality.card__quality-4k,
+            html body .app .card .card__view div.card__quality.card__quality-4k div,
+            html body .app .card .card__view div.card__quality.card__quality-2160,
+            html body .app .card .card__view div.card__quality.card__quality-2160 div {
+                color: #FFC107 !important;
+            }
+            
+            /* Неоновый 1080p / FHD / HD */
+            html body .app .card .card__view div.card__quality.card__quality-fhd,
+            html body .app .card .card__view div.card__quality.card__quality-fhd div,
+            html body .app .card .card__view div.card__quality.card__quality-hd,
+            html body .app .card .card__view div.card__quality.card__quality-hd div,
+            html body .app .card .card__view div.card__quality.card__quality-1080,
+            html body .app .card .card__view div.card__quality.card__quality-1080 div {
+                color: #00E5FF !important;
+            }
+
+            /* Белый для SD / TS */
+            html body .app .card .card__view div.card__quality.card__quality-sd,
+            html body .app .card .card__view div.card__quality.card__quality-sd div,
+            html body .app .card .card__view div.card__quality.card__quality-ts,
+            html body .app .card .card__view div.card__quality.card__quality-ts div {
+                color: #F8F9FA !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Вбиваем стили гарантированно
+    applyNuclearStyles();
+    setTimeout(applyNuclearStyles, 1000);
+
+    // 3. БЕССМЕРТНАЯ ТОЧКА СТАТУСА (Проверяет экран каждые полсекунды)
+    setInterval(function () {
+        // Ищем все плашки amikdn с типом "Сериал"
+        var labels = document.querySelectorAll('.card__type[data-card-overlay-type-label="1"]');
+        
+        for (var i = 0; i < labels.length; i++) {
+            var lbl = labels[i];
+            // Если точка уже есть - пропускаем
+            if (lbl.querySelector('.status-dot')) continue;
+            
+            var card = lbl.closest('.card');
             if (!card) continue;
             
-            var data = card.card_data || {};
-            if (!data.id && window.$ && window.$(card).length) {
+            // Достаем данные фильма
+            var data = card.card_data;
+            if (!data && window.$) {
                 var $c = window.$(card);
-                data = $c.data('data') || $c.data('card') || $c.data('item') || {};
+                data = $c.data('data') || $c.data('card') || $c.data('item');
             }
+            if (!data) continue;
             
-            var text = box.innerText || '';
-            var isTv = data.type === 'tv' || data.name || data.number_of_seasons || card.classList.contains('card--tv') || text.indexOf('Сериал') !== -1 || text.indexOf('S') !== -1;
+            // Проверяем, сериал ли это (если есть сезоны, либо статус, либо слово Сериал)
+            var isTv = data.type === 'tv' || data.name || data.number_of_seasons > 0 || (lbl.innerText && lbl.innerText.indexOf('Сериал') !== -1);
             
-            if (isTv && !box.querySelector('.status-dot')) {
-                var isEnded = data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен' || text.indexOf('Заверш') !== -1;
-                if (!isEnded && window.$) {
-                    var stText = window.$(card).find('.card__series-status').text() || '';
-                    if (stText.indexOf('Заверш') !== -1 || stText.indexOf('Отмен') !== -1) isEnded = true;
-                }
+            if (isTv) {
+                var isEnded = (data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен');
+                
                 var dot = document.createElement('span');
-                dot.className = 'status-dot ' + (isEnded ? 'dot-red' : 'dot-green');
-                box.appendChild(dot);
+                dot.className = 'status-dot';
+                dot.style.cssText = 'width: 8px !important; height: 8px !important; border-radius: 50% !important; display: inline-block !important; margin-left: 6px !important; box-shadow: 0 0 6px currentColor !important; vertical-align: middle !important;';
+                
+                if (isEnded) {
+                    dot.style.backgroundColor = '#FF3333';
+                    dot.style.color = '#FF3333';
+                } else {
+                    dot.style.backgroundColor = '#00FF66';
+                    dot.style.color = '#00FF66';
+                }
+                lbl.appendChild(dot);
             }
         }
-    }, 600);
+    }, 500);
 
-    console.log('🔥🔥 Турбо-Хвост (крупный рейтинг, цветное качество, точки) успешно запущен поверх amikdn! 🔥🔥');
 })();
