@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    // 1. НАШИ СТИЛИ С ВЫСОКИМ ПРИОРИТЕТОМ (z-index: 9999)
+    // 1. НАШИ СТИЛИ С МАКСИМАЛЬНЫМ ПРИОРИТЕТОМ (z-index: 9999)
     let style = document.createElement('style');
     style.innerHTML = `
         .my-overlay-box {
@@ -94,107 +94,118 @@
     `;
     document.head.appendChild(style);
 
-    let firstCardLogged = false;
+    // Главная функция оформления одной карточки
+    function decorateCard(cardEl, data) {
+        if (!cardEl || !data) return;
 
-    // 2. УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК КАРТОЧЕК (Без фильтра e.type == 'build'!)
+        let view = null;
+        if (cardEl.find) {
+            view = cardEl.find('.card__view')[0] || cardEl.find('.card__img')[0] || cardEl[0];
+        } else if (cardEl.querySelector) {
+            view = cardEl.querySelector('.card__view') || cardEl.querySelector('.card__img') || cardEl;
+        }
+        if (!view) return;
+
+        // Защита от дублирования
+        if (view.classList.contains('my-overlay-added')) return;
+        view.classList.add('my-overlay-added');
+
+        if (view.style) view.style.position = 'relative';
+
+        // --- 1. ГОД ---
+        let year = data.release_date || data.first_air_date || data.year || data.date;
+        if (year) {
+            let cleanYear = String(year).slice(0, 4);
+            if (cleanYear.length === 4 && !isNaN(cleanYear)) {
+                let yearBox = document.createElement('div');
+                yearBox.className = 'my-overlay-box my-overlay__top-right';
+                yearBox.innerText = cleanYear;
+                view.appendChild(yearBox);
+            }
+        }
+
+        // --- 2. ТИП + СЕРИИ + ТОЧКА СТАТУСА ---
+        let isTv = data.type === 'tv' || data.name || data.number_of_seasons || data.first_air_date;
+        let typeBox = document.createElement('div');
+        typeBox.className = 'my-overlay-box my-overlay__top-left';
+
+        if (isTv) {
+            let seasonInfo = '';
+            if (data.number_of_seasons) seasonInfo += `S${data.number_of_seasons}`;
+            if (data.number_of_episodes) seasonInfo += ` E${data.number_of_episodes}`;
+            
+            let isEnded = data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен';
+            let dotClass = isEnded ? 'dot-red' : 'dot-green';
+
+            typeBox.innerHTML = `СЕРИАЛ ${seasonInfo} <span class="status-dot ${dotClass}"></span>`;
+        } else {
+            typeBox.innerText = 'ФИЛЬМ';
+        }
+        view.appendChild(typeBox);
+
+        // --- 3. ЦВЕТНОЕ КАЧЕСТВО ---
+        let quality = data.quality || data.hd || (data.rip ? 'DVDRip' : '');
+        if (quality) {
+            let qText = String(quality).toUpperCase();
+            let colorClass = 'quality-white';
+
+            if (qText.includes('4K') || qText.includes('2160') || qText.includes('UHD')) {
+                colorClass = 'quality-gold';
+            } else if (qText.includes('1080') || qText.includes('FHD') || qText.includes('BLU') || qText.includes('BDRIP')) {
+                colorClass = 'quality-blue';
+            }
+
+            let qualityBox = document.createElement('div');
+            qualityBox.className = `my-overlay-box my-overlay__quality ${colorClass}`;
+            qualityBox.innerText = qText;
+            view.appendChild(qualityBox);
+        }
+
+        // --- 4. КРУПНЫЙ РЕЙТИНГ ---
+        let rating = data.kp_rating || data.rating_kp || data.imdb_rating || data.rating_imdb || data.vote_average || data.rating;
+        if (rating && parseFloat(rating) > 0) {
+            let cleanRating = parseFloat(rating).toFixed(1);
+            
+            let ratingColorClass = 'rating-good';
+            if (cleanRating < 5.0) ratingColorClass = 'rating-bad';
+            else if (cleanRating < 7.0) ratingColorClass = 'rating-mid';
+
+            let ratingBox = document.createElement('div');
+            ratingBox.className = `my-overlay-box my-overlay__rating ${ratingColorClass}`;
+            ratingBox.innerText = cleanRating;
+            view.appendChild(ratingBox);
+        }
+    }
+
+    // 2. ОТСЛЕЖИВАЕМ НОВЫЕ КАРТОЧКИ В РЕАЛЬНОМ ВРЕМЕНИ
     Lampa.Listener.follow('card', function (e) {
         try {
-            let card = e.render;
-            let data = e.object || e.data;
-
-            if (!card || !data) return;
-
-            // Ищем визуальный контейнер карточки
-            let view = null;
-            if (card.find) {
-                view = card.find('.card__view')[0] || card.find('.card__img')[0] || card[0];
-            } else if (card.querySelector) {
-                view = card.querySelector('.card__view') || card.querySelector('.card__img') || card;
+            if (e.render && (e.object || e.data)) {
+                decorateCard(e.render, e.object || e.data);
             }
-            if (!view) return;
-
-            // Защита от повторного наложения на одну и ту же карточку
-            if (view.classList.contains('my-overlay-added')) return;
-            view.classList.add('my-overlay-added');
-
-            // Удерживаем плашки в границах постера
-            if (view.style) view.style.position = 'relative';
-
-            // --- 1. ГОД ---
-            let year = data.release_date || data.first_air_date || data.year || data.date;
-            if (year) {
-                let cleanYear = String(year).slice(0, 4);
-                if (cleanYear.length === 4 && !isNaN(cleanYear)) {
-                    let yearBox = document.createElement('div');
-                    yearBox.className = 'my-overlay-box my-overlay__top-right';
-                    yearBox.innerText = cleanYear;
-                    view.appendChild(yearBox);
-                }
-            }
-
-            // --- 2. ТИП + СЕРИИ + ТОЧКА СТАТУСА ---
-            let isTv = data.type === 'tv' || data.name || data.number_of_seasons || data.first_air_date;
-            let typeBox = document.createElement('div');
-            typeBox.className = 'my-overlay-box my-overlay__top-left';
-
-            if (isTv) {
-                let seasonInfo = '';
-                if (data.number_of_seasons) seasonInfo += `S${data.number_of_seasons}`;
-                if (data.number_of_episodes) seasonInfo += ` E${data.number_of_episodes}`;
-                
-                let isEnded = data.status === 'Ended' || data.status === 'Canceled' || data.status === 'Завершен';
-                let dotClass = isEnded ? 'dot-red' : 'dot-green';
-
-                typeBox.innerHTML = `СЕРИАЛ ${seasonInfo} <span class="status-dot ${dotClass}"></span>`;
-            } else {
-                typeBox.innerText = 'ФИЛЬМ';
-            }
-            view.appendChild(typeBox);
-
-            // --- 3. ЦВЕТНОЕ КАЧЕСТВО ---
-            let quality = data.quality || data.hd || (data.rip ? 'DVDRip' : '');
-            if (quality) {
-                let qText = String(quality).toUpperCase();
-                let colorClass = 'quality-white';
-
-                if (qText.includes('4K') || qText.includes('2160') || qText.includes('UHD')) {
-                    colorClass = 'quality-gold';
-                } else if (qText.includes('1080') || qText.includes('FHD') || qText.includes('BLU') || qText.includes('BDRIP')) {
-                    colorClass = 'quality-blue';
-                }
-
-                let qualityBox = document.createElement('div');
-                qualityBox.className = `my-overlay-box my-overlay__quality ${colorClass}`;
-                qualityBox.innerText = qText;
-                view.appendChild(qualityBox);
-            }
-
-            // --- 4. КРУПНЫЙ РЕЙТИНГ ---
-            let rating = data.kp_rating || data.rating_kp || data.imdb_rating || data.rating_imdb || data.vote_average || data.rating;
-            if (rating && parseFloat(rating) > 0) {
-                let cleanRating = parseFloat(rating).toFixed(1);
-                
-                let ratingColorClass = 'rating-good';
-                if (cleanRating < 5.0) ratingColorClass = 'rating-bad';
-                else if (cleanRating < 7.0) ratingColorClass = 'rating-mid';
-
-                let ratingBox = document.createElement('div');
-                ratingBox.className = `my-overlay-box my-overlay__rating ${ratingColorClass}`;
-                ratingBox.innerText = cleanRating;
-                view.appendChild(ratingBox);
-            }
-
-            // Выводим сообщение в консоль, когда первая карточка успешно оформилась
-            if (!firstCardLogged) {
-                console.log('УСПЕХ! Кастомный плагин начал оформлять карточки:', data.title || data.name || 'Фильм');
-                firstCardLogged = true;
-            }
-
         } catch (err) {
-            console.error('Ошибка отрисовки карточки в плагине:', err);
+            console.error('Ошибка в обработчике card:', err);
         }
     });
 
-    console.log('Кастомный плагин оверлея v2.0 (без фильтра типов) успешно загружен!');
+    // 3. АВТОЗАХВАТ: Пробегаемся по уже открытым карточкам на экране (если плагин загрузился с опозданием)
+    setTimeout(function() {
+        let count = 0;
+        if (window.Lampa && window.Lampa.Activity) {
+            let active = window.Lampa.Activity.active();
+            if (active && active.activity && active.activity.render) {
+                active.activity.render().find('.card').each(function() {
+                    let cardEl = $(this);
+                    // Вытаскиваем данные фильма, прикрепленные к карточке Лампой
+                    let data = cardEl.data('data') || cardEl.data('card') || (cardEl[0] && cardEl[0].card_data);
+                    if (data) {
+                        decorateCard(cardEl, data);
+                        count++;
+                    }
+                });
+            }
+        }
+        console.log(`🔥🔥 Кастомный оверлей v3.0 (АБСОЛЮТНАЯ ПОБЕДА) успешно запущен! Обработано старых карточек: ${count} 🔥🔥`);
+    }, 1000);
 
 })();
