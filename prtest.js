@@ -1,17 +1,26 @@
+/*
+* byLampa Cards v9.3 (Ultra-Smooth TV Engine)
+* Никаких визуальных изменений — весь интерфейс и цвета сохранены на 100%.
+* Глубокая оптимизация для Smart TV и Android ТВ-приставок:
+* - GPU аппаратное ускорение плашек (contain + translateZ)
+* - Отрисовка DOM микро-порциями (requestAnimationFrame)
+* - Буфер скролла для защиты от фризов пульта (Debounce 60ms)
+*/
+
 (function () {
     'use strict';
 
     function initPlugin() {
-        if (window.bylampa_cards_v92_loaded) return;
-        window.bylampa_cards_v92_loaded = true;
+        if (window.bylampa_cards_v93_loaded) return;
+        window.bylampa_cards_v93_loaded = true;
 
-        console.log('byLampa Cards v9.2: Ультра-безопасная Очередь (ES5)');
+        console.log('byLampa Cards v9.3: Ультра-плавный движок для ТВ (GPU + rAF Batching)');
 
-        // --- 1. НАШИ ФИРМЕННЫЕ СТИЛИ (4 УГЛА + БЛЮР) ---
+        // --- 1. СТИЛИ (С GPU-УСКОРЕНИЕМ ДЛЯ ТВ) ---
         var style = document.createElement('style');
-        // Используем обычные кавычки для поддержки старых ТВ
         style.innerHTML = 
-            ".bl-badge { position: absolute !important; padding: 0.35em 0.6em; font-family: sans-serif, Arial, Helvetica; font-weight: 700; font-size: 0.8em; line-height: 1; z-index: 100 !important; pointer-events: none; display: flex; align-items: center; gap: 0.35em; box-shadow: 0 2px 8px rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: all 0.2s ease; box-sizing: border-box; }" +
+            /* contain: layout style и translateZ(0) спасают ТВ от перерисовки каталога при скролле */
+            ".bl-badge { position: absolute !important; padding: 0.35em 0.6em; font-family: sans-serif, Arial, Helvetica; font-weight: 700; font-size: 0.8em; line-height: 1; z-index: 100 !important; pointer-events: none; display: flex; align-items: center; gap: 0.35em; box-shadow: 0 2px 8px rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: all 0.2s ease; box-sizing: border-box; contain: layout style; transform: translateZ(0); -webkit-transform: translateZ(0); }" +
             ".bl-badge--tl { top: 0 !important; left: 0 !important; background: rgba(38, 166, 91, 0.85); color: #fff; border-bottom-right-radius: 10px; flex-direction: column !important; align-items: flex-start !important; justify-content: center; gap: 0.15em !important; }" +
             ".bl-badge--tr { top: 0 !important; right: 0 !important; background: rgba(20, 20, 20, 0.85); color: #fff; border-bottom-left-radius: 10px; }" +
             ".bl-badge--bl { bottom: 0 !important; left: 0 !important; border-top-right-radius: 10px; font-weight: 900; letter-spacing: 0.5px; }" +
@@ -28,10 +37,10 @@
         document.head.appendChild(style);
 
         // --- 2. БАЗЫ ДАННЫХ И КЭШ ---
-        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v92', 500, {});
-        var TV_INFO_CACHE = Lampa.Storage.cache('bl_tv_info_cache_v92', 500, {});
+        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v93', 500, {});
+        var TV_INFO_CACHE = Lampa.Storage.cache('bl_tv_info_cache_v93', 500, {});
 
-        // --- 3. ОЧЕРЕДЬ ЗАПРОСОВ (Спасает ТВ от тормозов) ---
+        // --- 3. СЕТЕВАЯ ОЧЕРЕДЬ ЗАПРОСОВ ---
         var networkQueue = [];
         var queueTimer = null;
 
@@ -42,24 +51,21 @@
                 return;
             }
             var task = networkQueue.shift();
-            // Выполняем задачу, только если карточка всё ещё находится на экране
+            // Выполняем задачу только если карточка всё ещё на экране
             if (task.card && document.body.contains(task.card)) {
                 task.func();
-            } else {
-                // Если пролистали дальше — пропускаем и сразу берём следующую
-                setTimeout(processQueue, 0); 
             }
         }
 
         function addToQueue(card, func) {
             networkQueue.push({ card: card, func: func });
             if (!queueTimer) {
-                // Выполнять ровно 1 запрос каждые 150 миллисекунд (никаких лагов)
-                queueTimer = setInterval(processQueue, 150); 
+                // 200 мс между сетевыми запросами — идеальный баланс для ТВ-приставок
+                queueTimer = setInterval(processQueue, 200); 
             }
         }
 
-        // --- 4. ДОБЫЧА КАЧЕСТВА (JACRED + ALLOHA) ---
+        // --- 4. ДОБЫЧА КАЧЕСТВА (JACRED) ---
         function fetchExternalQuality(data, callback) {
             var cacheKey = (data.media_type || 'movie') + '_' + data.id;
             if (QUALITY_CACHE[cacheKey]) { callback(QUALITY_CACHE[cacheKey]); return; }
@@ -68,10 +74,9 @@
             var title = (data.title || data.name || '').trim();
             if (!year || !title) { callback(null); return; }
 
-            // Логика взята из вашего рабочего плагина-донора
             var uid = Lampa.Storage.get('lampac_unic_id', '');
             var jUrl = Lampa.Storage.get('jackett_url') || Lampa.Storage.get('jac.red') || 'jac.red';
-            jUrl = jUrl.replace(/^https?:\/\//i, ''); // Очищаем от протокола, если есть
+            jUrl = jUrl.replace(/^https?:\/\//i, '');
             var url = 'http://' + jUrl + '/api/v1.0/torrents?search=' + encodeURIComponent(title) + '&year=' + year + '&uid=' + uid;
 
             var req = new Lampa.Reguest();
@@ -96,7 +101,7 @@
                             else if (bestQ >= 1080) fQ = 'FHD';
                             
                             QUALITY_CACHE[cacheKey] = fQ; 
-                            Lampa.Storage.set('bl_quality_cache_v92', QUALITY_CACHE);
+                            Lampa.Storage.set('bl_quality_cache_v93', QUALITY_CACHE);
                             callback(fQ); return;
                         }
                     }
@@ -130,13 +135,13 @@
                     }
                     var infoObj = { status: st, ep: epStr };
                     TV_INFO_CACHE[cacheKey] = infoObj; 
-                    Lampa.Storage.set('bl_tv_info_cache_v92', TV_INFO_CACHE);
+                    Lampa.Storage.set('bl_tv_info_cache_v93', TV_INFO_CACHE);
                     callback(infoObj);
                 } else callback(null);
             }, function () { callback(null); });
         }
 
-        // --- 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (Рейтинг, Данные) ---
+        // --- 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
         function getCardData(domCard) {
             var nodes = [domCard, domCard.querySelector('.card__view'), domCard.parentNode, domCard.firstElementChild];
             for (var i = 0; i < nodes.length; i++) {
@@ -171,17 +176,16 @@
             return '';
         }
 
-        // --- 7. ГЛАВНЫЙ СБОРЩИК (Применяет данные к карточке) ---
+        // --- 7. ГЛАВНЫЙ СБОРЩИК ---
         function processCard(domCard) {
             var data = getCardData(domCard);
             if (!data || !data.id) return;
             var view = domCard.querySelector('.card__view') || domCard;
 
-            // Прячем стандартный рейтинг Lampa (МОМЕНТАЛЬНО!)
             var nativeVote = view.querySelector('.card__vote');
             if (nativeVote) nativeVote.style.display = 'none';
 
-            // ↗️ ГОД (Мгновенно)
+            // ↗️ ГОД
             if (!view.querySelector('.bl-badge--tr')) {
                 var year = (data.release_date || data.first_air_date || data.year || '').toString().slice(0, 4);
                 if (year && year !== '0000') {
@@ -190,7 +194,7 @@
                 }
             }
 
-            // ↘️ РЕЙТИНГ (Мгновенно)
+            // ↘️ РЕЙТИНГ
             if (!view.querySelector('.bl-badge--br')) {
                 var rating = getRating(data);
                 var brBadge = document.createElement('div'); brBadge.className = 'bl-badge bl-badge--br';
@@ -227,7 +231,6 @@
                     if (stState && epVal) {
                         updateTvBadge(stState, epVal);
                     } else {
-                        // Если нет в карточке — ставим запрос В ОЧЕРЕДЬ
                         addToQueue(domCard, function() {
                             fetchExternalTvInfo(data, function(info) {
                                 if (info && tlBadge.parentNode) updateTvBadge(info.status || stState, info.ep || epVal);
@@ -262,7 +265,6 @@
                     var cleanQ = /4k|2160/i.test(qVal) ? '4K' : (/1080|fhd/i.test(qVal) ? 'FHD' : (/cam|ts/i.test(qVal) ? 'CAM' : 'HD'));
                     applyQualityBadge(cleanQ);
                 } else {
-                    // Если нет качества — ставим поиск В ОЧЕРЕДЬ
                     addToQueue(domCard, function() {
                         fetchExternalQuality(data, function(fetchedQ) {
                             if (fetchedQ) { data.quality = fetchedQ; applyQualityBadge(fetchedQ); }
@@ -272,27 +274,41 @@
             }
         }
 
-        // --- 8. НАБЛЮДАТЕЛЬ (ES5 совместимый) ---
-        var mutObserver = new MutationObserver(function(mutations) {
-            for (var m = 0; m < mutations.length; m++) {
-                var added = mutations[m].addedNodes;
-                for (var i = 0; i < added.length; i++) {
-                    var node = added[i];
-                    if (node.nodeType === 1) {
-                        if (node.classList && node.classList.contains('card')) {
-                            if (!node.getAttribute('data-bl-processed')) {
-                                node.setAttribute('data-bl-processed', 'true');
-                                processCard(node);
-                            }
-                        } else if (node.querySelectorAll) {
-                            var cards = node.querySelectorAll('.card:not([data-bl-processed])');
-                            for (var c = 0; c < cards.length; c++) {
-                                cards[c].setAttribute('data-bl-processed', 'true');
-                                processCard(cards[c]);
-                            }
-                        }
+        // --- 8. ОПТИМИЗИРОВАННЫЙ ДВИЖОК ОТРИСОВКИ ДЛЯ ТВ (rAF Batching) ---
+        var pendingCards = [];
+        var isRendering = false;
+
+        function scheduleRender() {
+            if (isRendering || pendingCards.length === 0) return;
+            isRendering = true;
+            // requestAnimationFrame рисует ровно в момент, когда ТВ готов к следующему кадру
+            requestAnimationFrame(function() {
+                // Берем по 4 карточки за кадр — интерфейс не лагает при скролле!
+                var chunk = pendingCards.splice(0, 4);
+                for (var i = 0; i < chunk.length; i++) {
+                    if (document.body.contains(chunk[i])) {
+                        processCard(chunk[i]);
                     }
                 }
+                isRendering = false;
+                if (pendingCards.length > 0) scheduleRender();
+            });
+        }
+
+        // --- 9. БУФЕР СКРОЛЛА (Debounce 60ms) ---
+        var mutTimer = null;
+        var mutObserver = new MutationObserver(function() {
+            if (!mutTimer) {
+                // Ждем 60 мс, чтобы Lampa закончила двигать экран при скролле
+                mutTimer = setTimeout(function() {
+                    mutTimer = null;
+                    var cards = document.querySelectorAll('.card:not([data-bl-processed])');
+                    for (var i = 0; i < cards.length; i++) {
+                        cards[i].setAttribute('data-bl-processed', 'true');
+                        pendingCards.push(cards[i]);
+                    }
+                    scheduleRender();
+                }, 60);
             }
         });
         mutObserver.observe(document.body, { childList: true, subtree: true });
@@ -301,8 +317,9 @@
         var initialCards = document.querySelectorAll('.card:not([data-bl-processed])');
         for (var i = 0; i < initialCards.length; i++) {
             initialCards[i].setAttribute('data-bl-processed', 'true');
-            processCard(initialCards[i]);
+            pendingCards.push(initialCards[i]);
         }
+        scheduleRender();
     }
 
     if (window.appready || (window.Lampa && window.Lampa.Card)) initPlugin();
