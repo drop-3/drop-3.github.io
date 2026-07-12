@@ -2,13 +2,13 @@
     'use strict';
 
     function initPlugin() {
-        if (window.bylampa_cards_v8_loaded) return;
-        window.bylampa_cards_v8_loaded = true;
+        if (window.bylampa_cards_v81_loaded) return;
+        window.bylampa_cards_v81_loaded = true;
 
-        console.log('byLampa Cards v8.0: Запуск симбиоз-движка (Alloha + JacRed + TMDB)...');
-        if (window.Lampa && Lampa.Noty) Lampa.Noty.show('🚀 byLampa Cards v8.0: Симбиоз-движок активирован!');
+        console.log('byLampa Cards v8.1: Запуск (Alloha + JacRed + TMDB + S:E info)...');
+        // Уведомление Lampa.Noty.show убрано по вашей просьбе — запуск полностью тихий!
 
-        // --- 1. НАШИ ФИРМЕННЫЕ СТИЛИ (4 УГЛА + БЛЮР) ---
+        // --- 1. НАШИ ФИРМЕННЫЕ СТИЛИ (4 УГЛА + БЛЮР + СЕЗОНЫ) ---
         var style = document.createElement('style');
         style.innerHTML = `
             .bl-badge {
@@ -17,7 +17,12 @@
                 display: flex; align-items: center; gap: 0.35em; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
                 backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: all 0.2s ease; box-sizing: border-box;
             }
-            .bl-badge--tl { top: 0 !important; left: 0 !important; background: rgba(38, 166, 91, 0.85); color: #fff; border-bottom-right-radius: 10px; }
+            /* ↖️ Верхний левый: делаем вертикальную колонку для надписи Сериал и S1 E10 */
+            .bl-badge--tl { 
+                top: 0 !important; left: 0 !important; background: rgba(38, 166, 91, 0.85); color: #fff; 
+                border-bottom-right-radius: 10px; flex-direction: column !important; align-items: flex-start !important; 
+                justify-content: center; gap: 0.15em !important;
+            }
             .bl-badge--tr { top: 0 !important; right: 0 !important; background: rgba(20, 20, 20, 0.85); color: #fff; border-bottom-left-radius: 10px; }
             .bl-badge--bl { bottom: 0 !important; left: 0 !important; border-top-right-radius: 10px; font-weight: 900; letter-spacing: 0.5px; }
             .bl-quality--4k { background: #e5a00d; color: #000; }
@@ -26,13 +31,13 @@
             .bl-quality--cam { background: rgba(150, 30, 30, 0.85); color: #fff; }
             .bl-badge--br { bottom: 0 !important; right: 0 !important; background: rgba(20, 20, 20, 0.85); color: #00e5ff; border-top-left-radius: 10px; font-size: 0.9em; }
             .bl-badge--br .source-label { font-size: 0.55em; line-height: 0.9; color: #fff; opacity: 0.8; display: flex; flex-direction: column; text-align: center; font-weight: 600; }
-            .bl-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+            .bl-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
             .bl-dot--green { background: #00ff66; box-shadow: 0 0 5px #00ff66; }
             .bl-dot--red { background: #ff3333; box-shadow: 0 0 5px #ff3333; }
         `;
         document.head.appendChild(style);
 
-        // --- 2. АЛГОРИТМЫ РАСШИФРОВКИ СЕРВЕРОВ ALLOHA (Из донора) ---
+        // --- 2. АЛГОРИТМЫ РАСШИФРОВКИ СЕРВЕРОВ ALLOHA ---
         function _b64raw(str) {
             if (typeof atob === 'function') { try { return atob(str); } catch (e) {} }
             var b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -54,8 +59,8 @@
             } catch (e) { return []; }
         }
         var ALLOHA_SERVERS = _decodeAllohaServers();
-        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v8', 500, {});
-        var STATUS_CACHE = Lampa.Storage.cache('bl_status_cache_v8', 500, {});
+        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v81', 500, {});
+        var TV_INFO_CACHE = Lampa.Storage.cache('bl_tv_info_cache_v81', 500, {});
 
         // --- 3. МОТОР ДОБЫЧИ КАЧЕСТВА (Alloha + JacRed) ---
         function fetchExternalQuality(data, callback) {
@@ -65,7 +70,6 @@
             var req = new Lampa.Reguest();
             req.timeout(7000);
 
-            // 1. Попытка через Alloha
             if (ALLOHA_SERVERS.length > 0) {
                 var server = ALLOHA_SERVERS[Math.floor(Math.random() * ALLOHA_SERVERS.length)];
                 var url = server.url + '?token=' + server.token;
@@ -82,7 +86,7 @@
                             else if (json.data.quality && /(^|,\s*)ts(\s*,|$)/i.test(json.data.quality)) q = 'CAM';
                             else if (json.data.quality && /(1080|fhd)/i.test(json.data.quality)) q = 'FHD';
                             QUALITY_CACHE[cacheKey] = q;
-                            Lampa.Storage.set('bl_quality_cache_v8', QUALITY_CACHE);
+                            Lampa.Storage.set('bl_quality_cache_v81', QUALITY_CACHE);
                             callback(q); return;
                         }
                     } catch (e) {}
@@ -110,7 +114,7 @@
                             if (resVal === 1080) q = 'FHD';
                         }
                         QUALITY_CACHE[cacheKey] = q;
-                        Lampa.Storage.set('bl_quality_cache_v8', QUALITY_CACHE);
+                        Lampa.Storage.set('bl_quality_cache_v81', QUALITY_CACHE);
                         callback(q); return;
                     }
                 } catch(e) {}
@@ -118,11 +122,11 @@
             }, function () { callback(null); });
         }
 
-        // --- 4. МОТОР ДОБЫЧИ СТАТУСА СЕРИАЛОВ (TMDB API) ---
-        function fetchExternalTvStatus(data, callback) {
+        // --- 4. МОТОР ДОБЫЧИ СТАТУСА И СЕРИЙ (TMDB API) ---
+        function fetchExternalTvInfo(data, callback) {
             if (!data.id) { callback(null); return; }
             var cacheKey = 'tv_' + data.id;
-            if (STATUS_CACHE[cacheKey]) { callback(STATUS_CACHE[cacheKey]); return; }
+            if (TV_INFO_CACHE[cacheKey]) { callback(TV_INFO_CACHE[cacheKey]); return; }
 
             var apiKey = (Lampa.TMDB && Lampa.TMDB.key) ? Lampa.TMDB.key() : '4ef0d7355d9ffb5151e987764708ce96';
             var url = (Lampa.TMDB && Lampa.TMDB.api) ? Lampa.TMDB.api('tv/' + data.id + '?api_key=' + apiKey) : ('https://api.themoviedb.org/3/tv/' + data.id + '?api_key=' + apiKey);
@@ -132,9 +136,22 @@
             req.silent(url, function (res) {
                 if (res && res.status) {
                     var st = (res.status === 'Ended' || res.status === 'Canceled' || res.in_production === false) ? 'ended' : 'ongoing';
-                    STATUS_CACHE[cacheKey] = st;
-                    Lampa.Storage.set('bl_status_cache_v8', STATUS_CACHE);
-                    callback(st);
+                    
+                    // Вычисляем актуальный сезон и серию (S1 E10)
+                    var epObj = res.last_episode_to_air || res.next_episode_to_air;
+                    var epStr = '';
+                    if (epObj) {
+                        var s = parseInt(epObj.season_number, 10) || 0;
+                        var e = parseInt(epObj.episode_number, 10) || 0;
+                        if (s > 0 && e > 0) epStr = 'S' + s + ' E' + e;
+                    } else if (res.number_of_seasons > 0 && res.number_of_episodes > 0) {
+                        epStr = 'S' + res.number_of_seasons + ' E' + res.number_of_episodes;
+                    }
+
+                    var infoObj = { status: st, ep: epStr };
+                    TV_INFO_CACHE[cacheKey] = infoObj;
+                    Lampa.Storage.set('bl_tv_info_cache_v81', TV_INFO_CACHE);
+                    callback(infoObj);
                 } else callback(null);
             }, function () { callback(null); });
         }
@@ -163,6 +180,13 @@
         function isSeries(data) {
             return data.media_type === 'tv' || Boolean(data.first_air_date) || data.type === 'tv' || data.type === 'serial';
         }
+        function formatEpString(obj) {
+            if (!obj) return '';
+            var s = parseInt(obj.season_number, 10) || 0;
+            var e = parseInt(obj.episode_number, 10) || 0;
+            if (s > 0 && e > 0) return 'S' + s + ' E' + e;
+            return '';
+        }
         function getCardData(domCard) {
             if (!domCard) return null;
             var nodes = [domCard, domCard.querySelector('.card__view'), domCard.parentNode, domCard.firstElementChild];
@@ -181,14 +205,14 @@
             if (!cards.length) return;
 
             cards.forEach(function (domCard) {
-                if (domCard.getAttribute('data-bl-v8-tagged')) return;
+                if (domCard.getAttribute('data-bl-v81-tagged')) return;
                 var data = getCardData(domCard);
                 if (!data || !data.id) return;
 
                 var view = domCard.querySelector('.card__view') || domCard;
                 if (!view || !view.appendChild) return;
 
-                domCard.setAttribute('data-bl-v8-tagged', 'true');
+                domCard.setAttribute('data-bl-v81-tagged', 'true');
                 var nativeVote = view.querySelector('.card__vote');
                 if (nativeVote) nativeVote.style.display = 'none';
 
@@ -211,34 +235,66 @@
                     view.appendChild(brBadge);
                 }
 
-                // ↖️ Верхний левый: ТИП + ЛАМПОЧКА
+                // ↖️ Верхний левый: ТИП + ЛАМПОЧКА + СЕЗОН/СЕРИЯ (S1 E10)
                 if (!view.querySelector('.bl-badge--tl')) {
                     var tlBadge = document.createElement('div');
                     tlBadge.className = 'bl-badge bl-badge--tl';
+                    
                     if (isSeries(data)) {
-                        tlBadge.innerHTML = 'Сериал <span class="bl-dot" style="background:#888;"></span>';
+                        // Создаем 2 строки: верхняя (Сериал 🟢), нижняя (S1 E10 ярко-желтым цветом)
+                        var topRow = document.createElement('div');
+                        topRow.style.cssText = 'display: flex; align-items: center; gap: 0.35em; width: 100%; line-height: 1;';
+                        topRow.innerHTML = '<span>Сериал</span> <span class="bl-dot" style="background:#888;"></span>';
+                        
+                        var epRow = document.createElement('div');
+                        epRow.className = 'bl-ep-info';
+                        epRow.style.cssText = 'font-size: 0.85em; font-weight: 900; color: #ffeb3b; text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 0.5px; line-height: 1; display: none; margin-top: 0.1em;';
+                        
+                        tlBadge.appendChild(topRow);
+                        tlBadge.appendChild(epRow);
                         view.appendChild(tlBadge);
 
-                        // Проверяем статус в данных или запускаем фоновый поиск TMDB!
-                        var st = (data.status || '').toLowerCase();
-                        if (st === 'ended' || st === 'canceled' || data.in_production === false) {
-                            tlBadge.innerHTML = 'Сериал <span class="bl-dot bl-dot--red" title="Завершён"></span>';
-                        } else if (st === 'returning series' || data.in_production === true) {
-                            tlBadge.innerHTML = 'Сериал <span class="bl-dot bl-dot--green" title="Продолжается"></span>';
+                        var dotEl = topRow.querySelector('.bl-dot');
+
+                        function updateTvBadge(st, epText) {
+                            if (st === 'ended' || st === 'canceled' || st === false) {
+                                dotEl.className = 'bl-dot bl-dot--red';
+                                dotEl.title = 'Завершён';
+                            } else if (st === 'returning series' || st === 'ongoing' || st === true) {
+                                dotEl.className = 'bl-dot bl-dot--green';
+                                dotEl.title = 'Продолжается';
+                            }
+                            if (epText) {
+                                epRow.innerText = epText;
+                                epRow.style.display = 'block';
+                            }
+                        }
+
+                        // Проверяем, есть ли данные сразу в карточке
+                        var stVal = (data.status || '').toLowerCase();
+                        var stState = null;
+                        if (stVal === 'ended' || stVal === 'canceled' || data.in_production === false) stState = 'ended';
+                        else if (stVal === 'returning series' || data.in_production === true) stState = 'ongoing';
+                        
+                        var epVal = formatEpString(data.last_episode_to_air || data.next_episode_to_air);
+                        
+                        if (stState && epVal) {
+                            updateTvBadge(stState, epVal);
                         } else {
-                            fetchExternalTvStatus(data, function (fetchedStatus) {
-                                if (!fetchedStatus || !tlBadge.parentNode) return;
-                                if (fetchedStatus === 'ended') tlBadge.innerHTML = 'Сериал <span class="bl-dot bl-dot--red" title="Завершён"></span>';
-                                else tlBadge.innerHTML = 'Сериал <span class="bl-dot bl-dot--green" title="Продолжается"></span>';
+                            if (stState || epVal) updateTvBadge(stState, epVal);
+                            // Если чего-то не хватает — догружаем из TMDB!
+                            fetchExternalTvInfo(data, function (info) {
+                                if (!info || !tlBadge.parentNode) return;
+                                updateTvBadge(info.status || stState, info.ep || epVal);
                             });
                         }
                     } else {
-                        tlBadge.innerHTML = 'Фильм';
+                        tlBadge.innerHTML = '<span>Фильм</span>';
                         view.appendChild(tlBadge);
                     }
                 }
 
-                // ↙️ Нижний левый: КАЧЕСТВО (Агрессивный поиск)
+                // ↙️ Нижний левый: КАЧЕСТВО
                 if (!view.querySelector('.bl-badge--bl')) {
                     var qVal = data.quality || data.rip || data.resolution || '';
                     if (!qVal && data.title) {
@@ -263,10 +319,9 @@
                         var cleanQ = /4k|2160/i.test(qVal) ? '4K' : (/1080|fhd/i.test(qVal) ? 'FHD' : (/cam|ts/i.test(qVal) ? 'CAM' : 'HD'));
                         applyQualityBadge(cleanQ);
                     } else {
-                        // Если качества нет — запускаем фоновый поиск Alloha / JacRed!
                         fetchExternalQuality(data, function (fetchedQ) {
                             if (fetchedQ) {
-                                data.quality = fetchedQ; // Записываем в карточку, чтобы запомнить!
+                                data.quality = fetchedQ;
                                 applyQualityBadge(fetchedQ);
                             }
                         });
