@@ -5,13 +5,13 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина v7.0 (DOM Снайпер)...');
+        console.log('byLampa Cards Info: Запуск плагина v7.1 (Глубокий Скан)...');
 
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards v7.0: DOM Снайпер подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards v7.1: Глубокий Скан подключен!');
         }
 
-        // 1. Внедряем чистые стили ТОЛЬКО для наших плашек
+        // 1. Стили
         var style = document.createElement('style');
         style.innerHTML = `
             .bl-badge {
@@ -95,14 +95,44 @@
             return { val: 'NEW', src: '' };
         }
 
-        function getQuality(data) {
-            var q = (data.quality || data.rip || data.video_quality || data.resolution || '').toUpperCase();
-            var title = (data.name || data.title || '').toUpperCase();
+        // 🚨 АГРЕССИВНЫЙ ПОИСК КАЧЕСТВА (Проверяем 15+ полей и подписей)
+        function getQuality(data, domCard) {
+            var qStr = '';
+            var fields = [
+                'quality', 'rip', 'video_quality', 'resolution', 'label', 'tag', 'badge', 
+                'release_quality', 'camrip', 'telecine', 'hdrip', 'bdrip', 'webdl', 'webrip', '4k'
+            ];
+            
+            for (var i = 0; i < fields.length; i++) {
+                if (data[fields[i]]) qStr += ' ' + String(data[fields[i]]);
+            }
+            
+            // Дополнительно проверяем название фильма и оригинальное название
+            qStr += ' ' + (data.name || '') + ' ' + (data.title || '') + ' ' + (data.original_title || '') + ' ' + (data.original_name || '');
 
-            if (q.indexOf('4K') !== -1 || q.indexOf('2160') !== -1 || title.indexOf('4K') !== -1) return { text: '4K', className: 'bl-quality--4k' };
-            if (q.indexOf('1080') !== -1 || q.indexOf('FHD') !== -1) return { text: 'FHD', className: 'bl-quality--fhd' };
-            if (q.indexOf('720') !== -1 || q.indexOf('HD') !== -1) return { text: 'HD', className: 'bl-quality--hd' };
-            if (q.indexOf('CAM') !== -1 || q.indexOf('TS') !== -1 || q.indexOf('ЭКРАН') !== -1) return { text: 'CAM', className: 'bl-quality--cam' };
+            // Проверяем, не создал ли сам byLampa скрытую плашку качества в DOM
+            if (domCard && domCard.textContent) {
+                var txt = domCard.textContent.toUpperCase();
+                if (txt.indexOf('4K') !== -1 || txt.indexOf('UHD') !== -1) qStr += ' 4K';
+                else if (txt.indexOf('1080') !== -1 || txt.indexOf('FHD') !== -1) qStr += ' 1080';
+                else if (txt.indexOf('720') !== -1 || txt.indexOf('HD') !== -1) qStr += ' 720';
+                else if (txt.indexOf('CAM') !== -1 || txt.indexOf('TS') !== -1 || txt.indexOf('ЭКРАН') !== -1) qStr += ' CAM';
+            }
+
+            qStr = qStr.toUpperCase();
+
+            if (qStr.indexOf('4K') !== -1 || qStr.indexOf('2160') !== -1 || qStr.indexOf('UHD') !== -1) {
+                return { text: '4K', className: 'bl-quality--4k' };
+            }
+            if (qStr.indexOf('1080') !== -1 || qStr.indexOf('FHD') !== -1 || qStr.indexOf('BDRIP') !== -1 || qStr.indexOf('WEBRIP') !== -1 || qStr.indexOf('WEB-DL') !== -1) {
+                return { text: 'FHD', className: 'bl-quality--fhd' };
+            }
+            if (qStr.indexOf('720') !== -1 || qStr.indexOf('HD') !== -1 || qStr.indexOf('HDRIP') !== -1) {
+                return { text: 'HD', className: 'bl-quality--hd' };
+            }
+            if (qStr.indexOf('CAM') !== -1 || qStr.indexOf('TS') !== -1 || qStr.indexOf('ЭКРАН') !== -1 || qStr.indexOf('TELECINE') !== -1) {
+                return { text: 'CAM', className: 'bl-quality--cam' };
+            }
             return null;
         }
 
@@ -113,15 +143,15 @@
         function getSeriesStatusDot(data) {
             var status = (data.status || '').toLowerCase();
             if (status === 'ended' || status === 'canceled' || status === 'completed' || data.in_production === false) {
-                return '<span class="bl-dot bl-dot--red"></span>';
+                return '<span class="bl-dot bl-dot--red" title="Завершён"></span>';
             }
             if (status === 'returning series' || data.in_production === true || status === 'airing') {
-                return '<span class="bl-dot bl-dot--green"></span>';
+                return '<span class="bl-dot bl-dot--green" title="Продолжается"></span>';
             }
             return '';
         }
 
-        // 3. УНИВЕРСАЛЬНАЯ ОТМЫЧКА: Извлекаем данные фильма из DOM-узла карточки
+        // 3. Извлечение данных карты
         function getCardData(domCard) {
             if (!domCard) return null;
             var nodes = [domCard, domCard.querySelector('.card__view'), domCard.parentNode, domCard.firstElementChild];
@@ -137,7 +167,6 @@
                 if (n.__data && (n.__data.title || n.__data.name)) return n.__data;
                 if (n.object && (n.object.title || n.object.name)) return n.object;
             }
-            // Проверяем кэш jQuery
             if (window.$ && typeof window.$ === 'function') {
                 for (var i = 0; i < nodes.length; i++) {
                     var n = nodes[i];
@@ -155,44 +184,83 @@
             return null;
         }
 
-        // 4. Главная функция сканирования экрана
+        // 🚨 ФОНОВАЯ ПОДГРУЗКА СТАТУСА СЕРИАЛОВ (Без тормозов для ТВ)
+        var statusQueue = [];
+        var isProcessingQueue = false;
+
+        function processStatusQueue() {
+            if (isProcessingQueue || statusQueue.length === 0) return;
+            isProcessingQueue = true;
+
+            var task = statusQueue.shift();
+            if (!task || !task.id || !window.Lampa || !Lampa.TMDB) {
+                isProcessingQueue = false;
+                processStatusQueue();
+                return;
+            }
+
+            // Делаем тихий запрос к TMDB для узнавания статуса
+            var url = 'tv/' + task.id + '?api_key=' + (Lampa.TMDB.key || '4ef0d7355d9ffb5151e987764708ce96') + '&language=ru-RU';
+            
+            Lampa.TMDB.get(url, function (resp) {
+                if (resp && resp.status && task.badgeEl) {
+                    task.data.status = resp.status;
+                    task.data.in_production = resp.in_production;
+                    var dot = getSeriesStatusDot(task.data);
+                    if (dot) task.badgeEl.innerHTML = 'Сериал ' + dot;
+                }
+                setTimeout(function () {
+                    isProcessingQueue = false;
+                    processStatusQueue();
+                }, 200); // Пауза 200мс между запросами, чтобы не нагружать сеть
+            }, function () {
+                isProcessingQueue = false;
+                processStatusQueue();
+            });
+        }
+
+        // 4. Главное сканирование
         function scanAndApplyBadges() {
             try {
-                // Ищем все карточки на экране (точно так же, как рабочий плагин ищет рейтинг)
                 var cards = document.querySelectorAll('.card');
                 if (!cards || cards.length === 0) return;
 
-                var taggedCount = 0;
-                var lastTitle = '';
-
                 for (var i = 0; i < cards.length; i++) {
                     var domCard = cards[i];
-                    
-                    // Если уже оформили эту карту — пропускаем
                     if (domCard.getAttribute('data-bl-tagged')) continue;
 
                     var data = getCardData(domCard);
-                    if (!data) continue; // Если это карточка актёра или меню без фильма
+                    if (!data) continue;
 
-                    // Ищем контейнер постера
                     var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
                     if (view.tagName && view.tagName.toLowerCase() === 'img') view = view.parentNode || domCard;
 
                     domCard.setAttribute('data-bl-tagged', 'true');
-                    taggedCount++;
-                    lastTitle = data.title || data.name || 'Фильм';
 
-                    // Если на карточке уже есть родная цифра рейтинга — скрываем её, чтобы не мешала нашей
                     var nativeVote = view.querySelector('.card__vote');
                     if (nativeVote) nativeVote.style.display = 'none';
 
-                    // --- ↖️ Верхний левый ---
+                    // --- ↖️ Верхний левый (Тип + статус) ---
                     var tlBadge = document.createElement('div');
                     tlBadge.className = 'bl-badge bl-badge--tl';
-                    tlBadge.innerHTML = isSeries(data) ? ('Сериал ' + getSeriesStatusDot(data)) : 'Фильм';
-                    view.appendChild(tlBadge);
+                    var dotHtml = '';
+                    
+                    if (isSeries(data)) {
+                        dotHtml = getSeriesStatusDot(data);
+                        tlBadge.innerHTML = 'Сериал ' + dotHtml;
+                        view.appendChild(tlBadge);
 
-                    // --- ↗️ Верхний правый ---
+                        // Если статус неизвестен (каталог), ставим в очередь на тихую фоновую проверку!
+                        if (!dotHtml && data.id && statusQueue.length < 30) {
+                            statusQueue.push({ id: data.id, data: data, badgeEl: tlBadge });
+                            processStatusQueue();
+                        }
+                    } else {
+                        tlBadge.innerHTML = 'Фильм';
+                        view.appendChild(tlBadge);
+                    }
+
+                    // --- ↗️ Верхний правый (Год) ---
                     var year = getYear(data);
                     if (year && year !== '0000') {
                         var trBadge = document.createElement('div');
@@ -201,8 +269,8 @@
                         view.appendChild(trBadge);
                     }
 
-                    // --- ↙️ Нижний левый ---
-                    var quality = getQuality(data);
+                    // --- ↙️ Нижний левый (Качество) ---
+                    var quality = getQuality(data, domCard);
                     if (quality) {
                         var blBadge = document.createElement('div');
                         blBadge.className = 'bl-badge bl-badge--bl ' + quality.className;
@@ -210,52 +278,36 @@
                         view.appendChild(blBadge);
                     }
 
-                    // --- ↘️ Нижний правый ---
+                    // --- ↘️ Нижний правый (Рейтинг) ---
                     var rating = getRating(data);
                     var brBadge = document.createElement('div');
                     brBadge.className = 'bl-badge bl-badge--br';
                     brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
                     view.appendChild(brBadge);
                 }
-
-                // 🎯 РАДАР 7.0: Отчитываемся об успехе на экране!
-                if (taggedCount > 0 && !window._bl_radar_v7_shown && window.Lampa && Lampa.Noty) {
-                    window._bl_radar_v7_shown = true;
-                    Lampa.Noty.show('🛠 Радар v7.0: Найдено карт: ' + cards.length + ' ("' + lastTitle + '")');
-                }
-
             } catch (e) {
                 console.error('byLampa Cards Info: Ошибка в scanAndApplyBadges', e);
             }
         }
 
-        // 5. ГЛАВНЫЙ СЕКРЕТ: Вешаем MutationObserver на body, как в твоем рабочем плагине!
+        // 5. Наблюдатель DOM
         var timer;
-        var observer = new MutationObserver(function (mutations) {
+        var observer = new MutationObserver(function () {
             clearTimeout(timer);
-            timer = setTimeout(function () {
-                scanAndApplyBadges();
-            }, 30); // Ждем 30 мс после любого изменения экрана и сканируем карточки
+            timer = setTimeout(scanAndApplyBadges, 30);
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        observer.observe(document.body, { childList: true, subtree: true });
 
-        // Запускаем первое сканирование сразу
         setTimeout(scanAndApplyBadges, 500);
         setTimeout(scanAndApplyBadges, 1500);
     }
 
-    // Запуск плагина по готовности приложения
     if (window.appready || (window.Lampa && window.Lampa.Card)) {
         initPlugin();
     } else if (window.Lampa && Lampa.Listener) {
         Lampa.Listener.follow('app', function (e) {
-            if (e.type == 'ready' || e.type == 'appready') {
-                initPlugin();
-            }
+            if (e.type == 'ready' || e.type == 'appready') initPlugin();
         });
     } else {
         var checkTimer = setInterval(function () {
