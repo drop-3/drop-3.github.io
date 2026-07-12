@@ -1,25 +1,22 @@
 /*
-* byLampa Cards v9.3 (Ultra-Smooth TV Engine)
-* Никаких визуальных изменений — весь интерфейс и цвета сохранены на 100%.
-* Глубокая оптимизация для Smart TV и Android ТВ-приставок:
-* - GPU аппаратное ускорение плашек (contain + translateZ)
-* - Отрисовка DOM микро-порциями (requestAnimationFrame)
-* - Буфер скролла для защиты от фризов пульта (Debounce 60ms)
+* byLampa Cards v9.4 (Native Engine)
+* Визуал сохранен: 4 угла, цвета, блюр, лампочка сериалов.
+* ОПТИМИЗАЦИЯ: Прямой перехват системных функций Lampa (onVisible / build).
+* Нулевая нагрузка на процессор при скролле.
 */
 
 (function () {
     'use strict';
 
     function initPlugin() {
-        if (window.bylampa_cards_v93_loaded) return;
-        window.bylampa_cards_v93_loaded = true;
+        if (window.bylampa_cards_v94_loaded) return;
+        window.bylampa_cards_v94_loaded = true;
 
-        console.log('byLampa Cards v9.3: Ультра-плавный движок для ТВ (GPU + rAF Batching)');
+        console.log('byLampa Cards v9.4: Native Lampa Hooks Engine');
 
-        // --- 1. СТИЛИ (С GPU-УСКОРЕНИЕМ ДЛЯ ТВ) ---
+        // --- 1. НАШИ ФИРМЕННЫЕ СТИЛИ ---
         var style = document.createElement('style');
         style.innerHTML = 
-            /* contain: layout style и translateZ(0) спасают ТВ от перерисовки каталога при скролле */
             ".bl-badge { position: absolute !important; padding: 0.35em 0.6em; font-family: sans-serif, Arial, Helvetica; font-weight: 700; font-size: 0.8em; line-height: 1; z-index: 100 !important; pointer-events: none; display: flex; align-items: center; gap: 0.35em; box-shadow: 0 2px 8px rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: all 0.2s ease; box-sizing: border-box; contain: layout style; transform: translateZ(0); -webkit-transform: translateZ(0); }" +
             ".bl-badge--tl { top: 0 !important; left: 0 !important; background: rgba(38, 166, 91, 0.85); color: #fff; border-bottom-right-radius: 10px; flex-direction: column !important; align-items: flex-start !important; justify-content: center; gap: 0.15em !important; }" +
             ".bl-badge--tr { top: 0 !important; right: 0 !important; background: rgba(20, 20, 20, 0.85); color: #fff; border-bottom-left-radius: 10px; }" +
@@ -37,8 +34,8 @@
         document.head.appendChild(style);
 
         // --- 2. БАЗЫ ДАННЫХ И КЭШ ---
-        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v93', 500, {});
-        var TV_INFO_CACHE = Lampa.Storage.cache('bl_tv_info_cache_v93', 500, {});
+        var QUALITY_CACHE = Lampa.Storage.cache('bl_quality_cache_v94', 500, {});
+        var TV_INFO_CACHE = Lampa.Storage.cache('bl_tv_info_cache_v94', 500, {});
 
         // --- 3. СЕТЕВАЯ ОЧЕРЕДЬ ЗАПРОСОВ ---
         var networkQueue = [];
@@ -51,17 +48,18 @@
                 return;
             }
             var task = networkQueue.shift();
-            // Выполняем задачу только если карточка всё ещё на экране
+            // Выполняем задачу только если карточка физически существует в документе
             if (task.card && document.body.contains(task.card)) {
                 task.func();
+            } else {
+                setTimeout(processQueue, 0); // Пропускаем удаленную Lampa карточку
             }
         }
 
         function addToQueue(card, func) {
             networkQueue.push({ card: card, func: func });
             if (!queueTimer) {
-                // 200 мс между сетевыми запросами — идеальный баланс для ТВ-приставок
-                queueTimer = setInterval(processQueue, 200); 
+                queueTimer = setInterval(processQueue, 150); 
             }
         }
 
@@ -101,7 +99,7 @@
                             else if (bestQ >= 1080) fQ = 'FHD';
                             
                             QUALITY_CACHE[cacheKey] = fQ; 
-                            Lampa.Storage.set('bl_quality_cache_v93', QUALITY_CACHE);
+                            Lampa.Storage.set('bl_quality_cache_v94', QUALITY_CACHE);
                             callback(fQ); return;
                         }
                     }
@@ -135,23 +133,13 @@
                     }
                     var infoObj = { status: st, ep: epStr };
                     TV_INFO_CACHE[cacheKey] = infoObj; 
-                    Lampa.Storage.set('bl_tv_info_cache_v93', TV_INFO_CACHE);
+                    Lampa.Storage.set('bl_tv_info_cache_v94', TV_INFO_CACHE);
                     callback(infoObj);
                 } else callback(null);
             }, function () { callback(null); });
         }
 
         // --- 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-        function getCardData(domCard) {
-            var nodes = [domCard, domCard.querySelector('.card__view'), domCard.parentNode, domCard.firstElementChild];
-            for (var i = 0; i < nodes.length; i++) {
-                var n = nodes[i]; if (!n) continue;
-                if (n._data && (n._data.title || n._data.name)) return n._data;
-                if (n.data && (n.data.title || n.data.name)) return n.data;
-                if (n.card_data && (n.card_data.title || n.card_data.name)) return n.card_data;
-            }
-            return null;
-        }
         function getRating(data) {
             var tmdb = parseFloat(data.vote_average || 0);
             var imdb = parseFloat(data.imdb_rating || data.rating_imdb || 0);
@@ -177,8 +165,7 @@
         }
 
         // --- 7. ГЛАВНЫЙ СБОРЩИК ---
-        function processCard(domCard) {
-            var data = getCardData(domCard);
+        function processCard(domCard, data) {
             if (!data || !data.id) return;
             var view = domCard.querySelector('.card__view') || domCard;
 
@@ -274,52 +261,70 @@
             }
         }
 
-        // --- 8. ОПТИМИЗИРОВАННЫЙ ДВИЖОК ОТРИСОВКИ ДЛЯ ТВ (rAF Batching) ---
-        var pendingCards = [];
-        var isRendering = false;
-
-        function scheduleRender() {
-            if (isRendering || pendingCards.length === 0) return;
-            isRendering = true;
-            // requestAnimationFrame рисует ровно в момент, когда ТВ готов к следующему кадру
-            requestAnimationFrame(function() {
-                // Берем по 4 карточки за кадр — интерфейс не лагает при скролле!
-                var chunk = pendingCards.splice(0, 4);
-                for (var i = 0; i < chunk.length; i++) {
-                    if (document.body.contains(chunk[i])) {
-                        processCard(chunk[i]);
+        // --- 8. ГЛАВНЫЙ СЕКРЕТ СКОРОСТИ: ПРЯМОЙ ПЕРЕХВАТ LAMPA ---
+        function setupNativeHooks() {
+            try {
+                // Перехват 1: Событие onVisible (срабатывает, когда карточка появляется на экране)
+                if (window.Lampa && Lampa.Maker && Lampa.Maker.map) {
+                    var CardMaker = Lampa.Maker.map('Card');
+                    if (CardMaker && CardMaker.Card && !CardMaker.Card.__bylampa_hook__) {
+                        var originalOnVisible = CardMaker.Card.onVisible;
+                        CardMaker.Card.onVisible = function () {
+                            if (originalOnVisible) originalOnVisible.apply(this, arguments);
+                            var domCard = this.html || this.card;
+                            var data = domCard && domCard.card_data ? domCard.card_data : (this.card && this.card.card_data ? this.card.card_data : this.card_data);
+                            if (domCard && data && data.id) {
+                                processCard(domCard, data);
+                            }
+                        };
+                        CardMaker.Card.__bylampa_hook__ = true;
                     }
                 }
-                isRendering = false;
-                if (pendingCards.length > 0) scheduleRender();
+            } catch (e) {}
+
+            try {
+                // Перехват 2: Подмена системного метода build
+                if (window.Lampa && Lampa.Card && Lampa.Card.prototype) {
+                    var origBuild = Object.getOwnPropertyDescriptor(Lampa.Card.prototype, 'build');
+                    if (!origBuild || !origBuild.set) {
+                        Object.defineProperty(Lampa.Card.prototype, 'build', {
+                            get: function () { return this._build; },
+                            set: function (func) {
+                                var self = this;
+                                this._build = function () {
+                                    func.apply(self);
+                                    Lampa.Listener.send('bylampa_card', { type: 'build', object: self });
+                                };
+                            }
+                        });
+                    }
+                }
+            } catch (e) {}
+
+            // Слушаем наш собственный ивент из перехвата 2
+            Lampa.Listener.follow('bylampa_card', function (event) {
+                if (event.type === 'build' && event.object.card) {
+                    var data = event.object.card.card_data || event.object.data;
+                    if (data && data.id) {
+                        processCard(event.object.card, data);
+                    }
+                }
             });
         }
 
-        // --- 9. БУФЕР СКРОЛЛА (Debounce 60ms) ---
-        var mutTimer = null;
-        var mutObserver = new MutationObserver(function() {
-            if (!mutTimer) {
-                // Ждем 60 мс, чтобы Lampa закончила двигать экран при скролле
-                mutTimer = setTimeout(function() {
-                    mutTimer = null;
-                    var cards = document.querySelectorAll('.card:not([data-bl-processed])');
-                    for (var i = 0; i < cards.length; i++) {
-                        cards[i].setAttribute('data-bl-processed', 'true');
-                        pendingCards.push(cards[i]);
-                    }
-                    scheduleRender();
-                }, 60);
-            }
-        });
-        mutObserver.observe(document.body, { childList: true, subtree: true });
+        setupNativeHooks();
 
-        // Запуск для стартовых карточек
-        var initialCards = document.querySelectorAll('.card:not([data-bl-processed])');
-        for (var i = 0; i < initialCards.length; i++) {
-            initialCards[i].setAttribute('data-bl-processed', 'true');
-            pendingCards.push(initialCards[i]);
-        }
-        scheduleRender();
+        // Запуск для стартовых карточек (если плагин загрузился чуть позже, чем интерфейс)
+        setTimeout(function() {
+            var initialCards = document.querySelectorAll('.card');
+            for (var i = 0; i < initialCards.length; i++) {
+                var c = initialCards[i];
+                var data = c.card_data || c.data || c._data;
+                if (data && data.id && !c.querySelector('.bl-badge--br')) {
+                    processCard(c, data);
+                }
+            }
+        }, 500);
     }
 
     if (window.appready || (window.Lampa && window.Lampa.Card)) initPlugin();
