@@ -1,902 +1,137 @@
 (function () {
     'use strict';
 
-    // Изменено на v4.3, чтобы ТВ автоматически подхватил новый список парсеров без сброса кэша!
-    var STORAGE_PARSERS = 'ps_list_combo_v4.3';
-    var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.3';
-    var NO_PARSER       = 'no_parser';
-    var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
+    function initPlugin() {
+        if (!window.Lampa) return;
 
-    // Обновленный список парсеров (jacred.ru и jacred.xyz вместо старых)
-    var DEFAULT_PARSERS = [
-        { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_59117', shortName: 'Spawn (2)', name: 'SpawnUA (toloka, mazepa, etc.)', url: 'http://spawnum.duckdns.org:59117', settings: { key: '2', parser_torrent_type: 'jackett' } },
-        { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacred_ru_new', shortName: 'Jacred.ru', name: 'Jacred.ru', url: 'jacred.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacred_xyz', shortName: 'Jacred.xyz', name: 'Jacred.xyz', url: 'jacred.xyz', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jac_red_ru', shortName: 'Jac-red.ru', name: 'Jac-red.ru', url: 'jac-red.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jac_stull', shortName: 'Jac.Stull', name: 'Jac.stull', url: 'jac.stull.xyz', settings: { key: '1', parser_torrent_type: 'jackett' } },
-        { base: 'jr_maxvol', shortName: 'Jr.Maxvol', name: 'Jr.Maxvol.pro', url: 'jr.maxvol.pro', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'maxvol_pro', shortName: 'Jac.Maxvol', name: 'Jac.Maxvol.pro', url: 'jac.maxvol.pro', settings: { key: '1', parser_torrent_type: 'jackett' } },
-        { base: 'no_name', shortName: 'NoName', name: 'NoName', url: 'http://87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
-        { base: '407_xyz', shortName: '407-Xyz', name: '407-Xyz', url: '11.307407.xyz', settings: { key: '', parser_torrent_type: 'jackett' } }
-    ];
-
-    function getProto() {
-        return window.location.protocol === 'https:' ? 'https://' : 'http://';
-    }
-
-    function stripProxy(url) {
-        if (!url) return '';
-        return url.replace(PROXY_PREFIX, '');
-    }
-
-    function withProto(url) {
-        if (!url) return '';
-        var clean = stripProxy(url).replace(/^https?:\/\//i, '');
-        return getProto() + clean;
-    }
-
-    function applyProxy(url, targetType) {
-        if (!url) return '';
-        var cleanUrl = stripProxy(url);
-        var finalUrl = withProto(cleanUrl); 
-
-        var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-        var useProxy = (proxyVal === true || proxyVal === 'true');
-        
-        var currentTarget = Lampa.Storage.get('parser_proxy_target', 'both');
-        var shouldHaveProxy = useProxy && (currentTarget === 'both' || currentTarget === targetType);
-        
-        if (shouldHaveProxy) {
-            return PROXY_PREFIX + finalUrl;
-        }
-        return finalUrl;
-    }
-
-    function normalizeUrl(url) {
-        return (url || '').replace(/^https?:\/\//i, '').replace(/\/$/, '').trim().toLowerCase();
-    }
-
-    function getParsers() {
-        var s = Lampa.Storage.get(STORAGE_PARSERS, false);
-        if (typeof s === 'string') {
-            try { s = JSON.parse(s); } catch (e) {}
-        }
-        if (s && Array.isArray(s) && s.length > 0) return s;
-        return JSON.parse(JSON.stringify(DEFAULT_PARSERS));
-    }
-
-    function saveParsers(list) {
-        Lampa.Storage.set(STORAGE_PARSERS, list);
-    }
-
-    function updateStandardFieldsUI() {
-        setTimeout(function() {
-            var j1 = Lampa.Storage.get('jackett_url', '');
-            var j2 = Lampa.Storage.get('jackett_url_two', '');
-            var p1 = Lampa.Storage.get('prowlarr_url', '');
+        // Универсальный поиск ссылок в объекте раздачи
+        function getLinks(el) {
+            let magnet = '';
+            let direct = '';
             
-            $('div[data-name="jackett_url"] .settings-param__value').text(j1);
-            $('div[data-name="jackett_url_two"] .settings-param__value').text(j2);
-            $('div[data-name="prowlarr_url"] .settings-param__value').text(p1);
-        }, 50);
-    }
-
-    function refreshExistingUrls() {
-        var j_url1 = Lampa.Storage.get('jackett_url', '');
-        var j_url2 = Lampa.Storage.get('jackett_url_two', '');
-        var p_url1 = Lampa.Storage.get('prowlarr_url', '');
-        
-        if (j_url1) Lampa.Storage.set('jackett_url', applyProxy(j_url1, 'primary'));
-        if (p_url1) Lampa.Storage.set('prowlarr_url', applyProxy(p_url1, 'primary'));
-        if (j_url2) Lampa.Storage.set('jackett_url_two', applyProxy(j_url2, 'secondary'));
-    }
-
-    // Полный перевод всех строк на русский язык
-    function translate() {
-        Lampa.Lang.add({
-            bat_parser: { en: 'Parsers catalog', uk: 'Каталог парсеров', zh: '解析器目录', ru: 'Каталог парсеров' },
-            bat_parser_description: { en: 'Click to select a parser from', uk: 'Нажмите для выбора парсера из', zh: '点击从目录中选择解析器', ru: 'Нажмите для выбора парсера из' },
-            bat_parser_current: { en: 'Current selection:', uk: 'Текущий выбор:', zh: '当前选择：', ru: 'Текущий выбор:' },
-            bat_parser_none: { en: 'Not selected', uk: 'Не выбрано', zh: '未选择', ru: 'Не выбрано' },
-            bat_parser_selected_label: { en: 'Selected:', uk: 'Выбрано:', zh: '已选择：', ru: 'Выбрано:' },
-            bat_check_parsers: { en: 'Check parsers availability', uk: 'Проверить доступность серверов', zh: '检查解析器可用性', ru: 'Проверить доступность серверов' },
-            bat_check_parsers_desc: { en: 'Checks parsers availability', uk: 'Проверка доступности парсеров', zh: '执行解析器可用性检查', ru: 'Проверка доступности парсеров' },
-            bat_check_search: { en: 'Check search availability', uk: 'Проверить доступность поиска', zh: '检查搜索可用性', ru: 'Проверить доступность поиска' },
-            bat_check_search_desc: { en: 'Checks torrent search availability', uk: 'Проверка поиска торрентов', zh: '执行种子搜索可用性检查', ru: 'Проверка поиска торрентов' },
-            bat_check_done: { en: 'Check completed', uk: 'Проверка завершена', zh: '检查完成', ru: 'Проверка завершена' },
-            bat_status_checking_server: { en: 'Checking server…', uk: 'Проверка сервера…', zh: '检查服务器…', ru: 'Проверка сервера…' },
-            bat_status_server_ok: { en: 'Server available', uk: 'Сервер доступен', zh: '服务器可用', ru: 'Сервер доступен' },
-            bat_status_server_warn: { en: 'Server responds (restrictions)', uk: 'Сервер отвечает (ограничения)', zh: '服务器有响应（受限）', ru: 'Сервер отвечает (ограничения)' },
-            bat_status_server_bad: { en: 'Server unavailable', uk: 'Сервер недоступен', zh: '服务器不可用', ru: 'Сервер недоступен' },
-            bat_status_unknown: { en: 'Unchecked', uk: 'Не проверено', zh: '未检查', ru: 'Не проверено' },
-            bat_status_checking_search: { en: 'Checking search…', uk: 'Проверка поиска…', zh: '检查搜索…', ru: 'Проверка поиска…' },
-            bat_status_search_ok: { en: 'Search works', uk: 'Поиск работает', zh: '搜索可用', ru: 'Поиск работает' },
-            bat_status_search_bad: { en: 'Search does not work', uk: 'Поиск не работает', zh: '搜索不可用', ru: 'Поиск не работает' },
+            // Разные парсеры (JacRed, TorrServer, RuTracker) сохраняют ссылки в разные поля
+            let fields = ['magnet', 'MagnetUri', 'link', 'url', 'torrent', 'file', 'uri'];
             
-            bat_parser_proxy: { en: 'Enable proxy', uk: 'Включить прокси', zh: '启用代理', ru: 'Включить прокси' },
-            bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Добавляет прокси перед адресом парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
-            
-            bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для какого парсера (прокси)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
-            bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' }
-        });
-    }
-
-    var COLOR_OK = '#1aff00';
-    var COLOR_BAD = '#ff2e36';
-    var COLOR_WARN = '#f3d900';
-    var COLOR_UNKNOWN = '#8c8c8c';
-
-    var cache = {
-        data: {}, 
-        ttlHealth: 30 * 1000, 
-        ttlSearch: 15 * 60 * 1000,
-        get: function (key) { 
-            var v = this.data[key]; 
-            if (v && Date.now() < v.expiresAt) return v; 
-            return null; 
-        },
-        set: function (key, value, ttl) { 
-            this.data[key] = { value: value, expiresAt: Date.now() + ttl }; 
-        }
-    };
-
-    function notifyDone() {
-        // Уведомление отключено
-    }
-
-    function getSelectedBase() { 
-        return Lampa.Storage.get(STORAGE_PRI_ACT, NO_PARSER); 
-    }
-
-    function getParserByBase(base) {
-        var list = getParsers();
-        return list.find(function (p) { return p.base === base; });
-    }
-
-    function applySelectedParser(base) {
-        if (!base || base === NO_PARSER) return false;
-        var p = getParserByBase(base);
-        if (!p || !p.settings) return false;
-
-        var type = p.settings.parser_torrent_type || 'jackett';
-        var finalUrl = applyProxy(p.url, 'primary'); 
-
-        Lampa.Storage.set(type === 'prowlarr' ? 'prowlarr_url' : 'jackett_url', finalUrl);
-        Lampa.Storage.set(type === 'prowlarr' ? 'prowlarr_key' : 'jackett_key', p.settings.key || '');
-        Lampa.Storage.set('parser_torrent_type', type);
-        return true;
-    }
-
-    function updateSelectedLabelInSettings() {
-        var base = getSelectedBase();
-        var parser = getParserByBase(base);
-        var name = parser ? parser.name : Lampa.Lang.translate('bat_parser_none');
-        $('.bat-parser-selected').text(Lampa.Lang.translate('bat_parser_selected_label') + " " + name);
-    }
-
-    function protocolCandidatesFor(url) {
-        if (/^https?:\/\//i.test(url)) return [''];
-        return ['https://', 'http://'];
-    }
-
-    function ajaxTryUrls(urls, timeout) {
-        return new Promise(function (resolve) {
-            var idx = 0;
-            function attempt() {
-                if (idx >= urls.length) { resolve({ ok: false, xhr: null, url: null, network: true }); return; }
-                var url = urls[idx++];
-                $.ajax({
-                    url: url, method: 'GET', timeout: timeout,
-                    success: function (data, textStatus, xhr) { resolve({ ok: true, xhr: xhr, url: url, data: data }); },
-                    error: function (xhr) {
-                        var status = xhr && typeof xhr.status === 'number' ? xhr.status : 0;
-                        if (status === 0) attempt(); else resolve({ ok: false, xhr: xhr, url: url, network: false });
+            fields.forEach(function (field) {
+                if (el[field] && typeof el[field] === 'string') {
+                    let val = el[field].trim();
+                    if (val.toLowerCase().startsWith('magnet:')) {
+                        if (!magnet) magnet = val;
+                    } else if (val.toLowerCase().startsWith('http:') || val.toLowerCase().startsWith('https:') || val.toLowerCase().startsWith('ftp:')) {
+                        if (!direct) direct = val;
                     }
-                });
-            }
-            attempt();
-        });
-    }
-
-    // ---- НАЧАЛО БЛОКА: Улучшенная генерация ссылок с прокси-фоллбеком ----
-    function healthUrlCandidates(parser) {
-        var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
-        var type = (parser.settings && parser.settings.parser_torrent_type) || 'jackett';
-        var path = (type === 'prowlarr') ? '/api/v1/health?apikey=' + key : '/api/v2.0/indexers/status:healthy/results?apikey=' + key;
-        
-        var cleanUrl = stripProxy(parser.url); 
-        var protos = protocolCandidatesFor(cleanUrl);
-        
-        var urls = protos.map(function (p) { 
-            return p + cleanUrl + path; 
-        });
-
-        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для проверки
-        var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-        if (proxyVal === true || proxyVal === 'true') {
-            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
-            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
-        }
-        return urls;
-    }
-
-    function deepSearchUrlCandidates(parser, query) {
-        var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
-        var path = '/api/v2.0/indexers/all/results?apikey=' + key + '&Query=' + encodeURIComponent(query) + '&Category=2000';
-        
-        var cleanUrl = stripProxy(parser.url);
-        var protos = protocolCandidatesFor(cleanUrl);
-        
-        var urls = protos.map(function (p) { 
-            return p + cleanUrl + path; 
-        });
-
-        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для поиска
-        var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-        if (proxyVal === true || proxyVal === 'true') {
-            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
-            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
-        }
-        return urls;
-    }
-    // ---- КОНЕЦ БЛОКА ----
-
-    function runHealthChecks(parsers) {
-        var map = {};
-        var requests = parsers.map(function (parser) {
-            return new Promise(function (resolve) {
-                var urls = healthUrlCandidates(parser);
-                var cacheKey = 'health::' + parser.base + '::direct::' + urls.join('|');
-                var cached = cache.get(cacheKey);
-                if (cached) { map[parser.base] = cached.value; resolve(); return; }
-
-                ajaxTryUrls(urls, 5000).then(function (res) {
-                    var val;
-                    if (res.ok) val = { color: COLOR_OK, labelKey: 'bat_status_server_ok' };
-                    else if (res.network === false) val = { color: COLOR_WARN, labelKey: 'bat_status_server_warn' };
-                    else val = { color: COLOR_BAD, labelKey: 'bat_status_server_bad' };
-                    map[parser.base] = val; cache.set(cacheKey, val, cache.ttlHealth); resolve();
-                });
-            });
-        });
-        return Promise.all(requests).then(function () { return map; });
-    }
-
-    function runDeepSearchChecks(parsers) {
-        var map = {};
-        var SAFE_QUERIES = ['1080p', 'bluray', 'x264', '2022'];
-        var query = SAFE_QUERIES[Math.floor(Math.random() * SAFE_QUERIES.length)];
-
-        var requests = parsers.map(function (parser) {
-            return new Promise(function (resolve) {
-                var urls = deepSearchUrlCandidates(parser, query);
-                var cacheKey = 'search::' + parser.base + '::direct';
-                var cached = cache.get(cacheKey);
-                if (cached) { map[parser.base] = cached.value; resolve(); return; }
-
-                ajaxTryUrls(urls, 6000).then(function (res) {
-                    var val = res.ok ? { color: COLOR_OK, labelKey: 'bat_status_search_ok' } : { color: COLOR_BAD, labelKey: 'bat_status_search_bad' };
-                    map[parser.base] = val; cache.set(cacheKey, val, cache.ttlSearch); resolve();
-                });
-            });
-        });
-        return Promise.all(requests).then(function () { return map; });
-    }
-
-    function injectStyleOnce() {
-        if (window.__bat_parser_modal_style__) return;
-        window.__bat_parser_modal_style__ = true;
-        
-        var css = 
-            ".bat-parser-modal{display:flex;flex-direction:column;gap:1em}\n" +
-            ".bat-parser-modal__head{display:flex;align-items:center;justify-content:space-between;gap:1em}\n" +
-            ".bat-parser-modal__current-label{font-size:.9em;opacity:.7}\n" +
-            ".bat-parser-modal__current-value{font-size:1.1em}\n" +
-            ".bat-parser-modal__list{display:flex;flex-direction:column;gap:.6em}\n" +
-            ".bat-parser-modal__item{display:flex;align-items:center;justify-content:space-between;gap:1em;padding:.8em 1em;border-radius:.7em;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}\n" +
-            ".bat-parser-modal__item.is-selected,.bat-parser-modal__item.focus{border-color:#fff}\n" +
-            ".bat-parser-modal__left{display:flex;align-items:center;gap:.65em;min-width:0}\n" +
-            ".bat-parser-modal__dot{width:.55em;height:.55em;border-radius:50%;background:" + COLOR_UNKNOWN + ";box-shadow:0 0 .6em rgba(0,0,0,.35);flex:0 0 auto}\n" +
-            ".bat-parser-modal__name{font-size:1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n" +
-            ".bat-parser-modal__status{font-size:.85em;opacity:.75;text-align:right;flex:0 0 auto}\n" +
-            ".bat-parser-modal__actions{display:flex;gap:.6em;flex-wrap:wrap}\n" +
-            ".bat-parser-modal__action{padding:.55em .9em;border-radius:.6em;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}\n" +
-            ".bat-parser-modal__action.focus{border-color:#fff}";
-            
-        var style = document.createElement('style'); 
-        style.type = 'text/css'; 
-        style.appendChild(document.createTextNode(css)); 
-        document.head.appendChild(style);
-    }
-
-    function buildParserItem(base, name) {
-        var item = $("<div class='bat-parser-modal__item selector' data-base='" + base + "'><div class='bat-parser-modal__left'><span class='bat-parser-modal__dot'></span><div class='bat-parser-modal__name'></div></div><div class='bat-parser-modal__status'></div></div>");
-        item.find('.bat-parser-modal__name').text(name);
-        item.find('.bat-parser-modal__status').text(Lampa.Lang.translate('bat_status_unknown'));
-        return item;
-    }
-
-    function setItemStatus(item, color, labelKey) {
-        item.find('.bat-parser-modal__dot').css('background-color', color);
-        item.find('.bat-parser-modal__status').text(Lampa.Lang.translate(labelKey));
-    }
-
-    function applySelection(list, base) {
-        list.find('.bat-parser-modal__item').removeClass('is-selected');
-        list.find("[data-base='" + base + "']").addClass('is-selected');
-    }
-
-    function updateCurrentLabel(wrapper, base) {
-        var parser = getParserByBase(base);
-        wrapper.find('.bat-parser-modal__current-value').text(parser ? parser.name : Lampa.Lang.translate('bat_parser_none'));
-    }
-
-    // Блокировка от случайного дублирования окон на сенсорном экране
-    var modalOpenLock = false;
-
-    function openParserModal() {
-        // Если окно уже открывается или уже висит на экране - игнорируем нажатие
-        if (modalOpenLock || $('.bat-parser-modal').length > 0) return;
-        modalOpenLock = true;
-        setTimeout(function () { modalOpenLock = false; }, 600);
-
-        injectStyleOnce();
-        var selected = getSelectedBase();
-        var listData = getParsers();
-
-        var modal = $("<div class='bat-parser-modal'><div class='bat-parser-modal__head'><div class='bat-parser-modal__current'><div class='bat-parser-modal__current-label'></div><div class='bat-parser-modal__current-value'></div></div></div><div class='bat-parser-modal__list'></div><div class='bat-parser-modal__actions'></div></div>");
-        modal.find('.bat-parser-modal__current-label').text(Lampa.Lang.translate('bat_parser_current'));
-        updateCurrentLabel(modal, selected);
-
-        var list = modal.find('.bat-parser-modal__list');
-        var noneItem = buildParserItem(NO_PARSER, Lampa.Lang.translate('bat_parser_none'));
-        
-        noneItem.on('hover:enter', function () {
-            Lampa.Storage.set(STORAGE_PRI_ACT, NO_PARSER); 
-            applySelection(list, NO_PARSER); 
-            updateCurrentLabel(modal, NO_PARSER); 
-            updateSelectedLabelInSettings();
-        });
-        list.append(noneItem);
-
-        listData.forEach(function (p) {
-            var item = buildParserItem(p.base, p.name);
-            item.on('hover:enter', function () {
-                Lampa.Storage.set(STORAGE_PRI_ACT, p.base); 
-                applySelectedParser(p.base); 
-                applySelection(list, p.base); 
-                updateCurrentLabel(modal, p.base); 
-                updateSelectedLabelInSettings();
-                updateStandardFieldsUI();
-            });
-            list.append(item);
-        });
-
-        applySelection(list, selected);
-
-        var actions = modal.find('.bat-parser-modal__actions');
-        var btnHealth = $("<div class='bat-parser-modal__action selector'></div>").text(Lampa.Lang.translate('bat_check_parsers'));
-        var btnSearch = $("<div class='bat-parser-modal__action selector'></div>").text(Lampa.Lang.translate('bat_check_search'));
-        actions.append(btnHealth).append(btnSearch);
-
-        function applyMapToList(statusMap) {
-            list.find('.bat-parser-modal__item').each(function () {
-                var it = $(this); var base = it.data('base');
-                if (base === NO_PARSER) { setItemStatus(it, COLOR_UNKNOWN, 'bat_status_unknown'); return; }
-                var st = statusMap[base];
-                if (!st) setItemStatus(it, COLOR_UNKNOWN, 'bat_status_unknown'); else setItemStatus(it, st.color, st.labelKey);
-            });
-        }
-
-        function runHealthUI() {
-            list.find('.bat-parser-modal__item').each(function () {
-                var it = $(this); if (it.data('base') === NO_PARSER) setItemStatus(it, COLOR_UNKNOWN, 'bat_status_unknown'); else setItemStatus(it, COLOR_WARN, 'bat_status_checking_server');
-            });
-            return runHealthChecks(listData).then(function (map) { applyMapToList(map); notifyDone(); });
-        }
-
-        function runSearchUI() {
-            list.find('.bat-parser-modal__item').each(function () {
-                var it = $(this); if (it.data('base') === NO_PARSER) return; setItemStatus(it, COLOR_WARN, 'bat_status_checking_search');
-            });
-            return runDeepSearchChecks(listData).then(function (map) { applyMapToList(map); notifyDone(); });
-        }
-
-        btnHealth.on('hover:enter', runHealthUI);
-        btnSearch.on('hover:enter', runSearchUI);
-
-        var firstSelectable = list.find('.bat-parser-modal__item').first();
-        var active_component = Lampa.Controller.enabled() ? Lampa.Controller.enabled().name : '';
-        
-        Lampa.Modal.open({
-            title: Lampa.Lang.translate('bat_parser'), html: modal, size: 'medium', scroll_to_center: true, select: firstSelectable,
-            onBack: function () { 
-                Lampa.Modal.close(); 
-                // Восстанавливаем фокус только если это не мобильный тач-контроллер
-                if (active_component && active_component !== 'modal' && active_component !== 'touch') {
-                    Lampa.Controller.toggle(active_component); 
-                }
-            }
-        });
-
-        runHealthUI();
-    }
-
-    // Добавление кнопки (с иконкой магнита 🧲) в верхний бар
-    function addTopBarButton() {
-        if ($('.bat-top-parser-btn').length) return;
-        var head_actions = $('.head__actions');
-        if (!head_actions.length) return;
-
-        var btn = $(
-            '<div class="head__action selector bat-top-parser-btn" title="' + Lampa.Lang.translate('bat_parser') + '">' +
-                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">' +
-                    '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"></path>' +
-                    '<path d="m5 8 4 4"></path>' +
-                    '<path d="m12 15 4 4"></path>' +
-                '</svg>' +
-            '</div>'
-        );
-
-        // Используем ТОЛЬКО hover:enter, чтобы не было двойного открытия на тачскринах смартфонов
-        btn.on('hover:enter', function () {
-            openParserModal();
-        });
-
-        head_actions.prepend(btn);
-    }
-
-    function initTopBarListener() {
-        addTopBarButton();
-        if (window.Lampa && window.Lampa.Listener) {
-            Lampa.Listener.follow('activity', function (e) {
-                if (e.type === 'start' || e.type === 'destroy') {
-                    setTimeout(addTopBarButton, 200);
                 }
             });
+            
+            return { magnet: magnet, direct: direct };
         }
-    }
 
-    function initPrimarySettings() {
-        applySelectedParser(getSelectedBase());
-        
-        Lampa.SettingsApi.addParam({
-            component: 'parser', param: { name: 'bat_parser_manage', type: 'button' },
-            field: {
-                name: Lampa.Lang.translate('bat_parser'),
-                description: Lampa.Lang.translate('bat_parser_description') + " " + getParsers().length + "<div class='bat-parser-selected' style='margin-top:.35em;opacity:.85'></div>"
-            },
-            onChange: openParserModal,
-            onRender: function (item) {
-                setTimeout(function () {
-                    if (Lampa.Storage.field('parser_use')) item.show(); else item.hide();
-                    $('.settings-param__name', item).css('color', COLOR_WARN);
-                    updateSelectedLabelInSettings();
-                    var parserUse = $('div[data-name="parser_use"]').first();
-                    if (parserUse.length) item.insertAfter(parserUse);
+        // Копирование в буфер с защитой от блокировок в разных браузерах/HTTP
+        function copyText(text, successMessage) {
+            function showSuccess() {
+                Lampa.Noty.show(successMessage);
+            }
+            function showError() {
+                Lampa.Noty.show('Ошибка копирования. Проверьте разрешения браузера');
+            }
+
+            // Современный API (работает в HTTPS)
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(showSuccess).catch(function () {
+                    fallbackCopy(text, showSuccess, showError);
                 });
-            }
-        });
-
-        Lampa.SettingsApi.addParam({
-            component: 'parser',
-            param: { name: 'parser_use_proxy', type: 'trigger', default: false },
-            field: {
-                name: Lampa.Lang.translate('bat_parser_proxy'),
-                description: Lampa.Lang.translate('bat_parser_proxy_desc')
-            },
-            onChange: function () {
-                refreshExistingUrls();
-                Lampa.Settings.update();
-            },
-            onRender: function (item) {
-                setTimeout(function () {
-                    if (Lampa.Storage.field('parser_use')) item.show(); else item.hide();
-                    var manageBtn = $('div[data-name="bat_parser_manage"]').first();
-                    if (manageBtn.length) item.insertAfter(manageBtn);
-                }, 10);
-            }
-        });
-
-        Lampa.SettingsApi.addParam({
-            component: 'parser',
-            param: {
-                name: 'parser_proxy_target',
-                type: 'select',
-                values: {
-                    primary: 'Только для основного',
-                    secondary: 'Только для дополнительного',
-                    both: 'Для обоих (Основной + Дополнительный)'
-                },
-                default: 'both'
-            },
-            field: {
-                name: Lampa.Lang.translate('bat_parser_proxy_target'),
-                description: Lampa.Lang.translate('bat_parser_proxy_target_desc')
-            },
-            onChange: function () {
-                refreshExistingUrls();
-                Lampa.Settings.update();
-            },
-            onRender: function (item) {
-                setTimeout(function () {
-                    var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-                    var isProxyOn = (proxyVal === true || proxyVal === 'true');
-                    
-                    if (Lampa.Storage.field('parser_use') && isProxyOn) {
-                        item.show();
-                    } else {
-                        item.hide();
-                    }
-                    var proxyBtn = $('div[data-name="parser_use_proxy"]').first();
-                    if (proxyBtn.length) item.insertAfter(proxyBtn);
-                }, 10);
-            }
-        });
-    }
-
-    function applySecondaryParser(idx) {
-        var list = getParsers();
-        var p = list[idx];
-        if (!p) return;
-
-        var finalUrl = applyProxy(p.url, 'secondary');
-
-        Lampa.Storage.set('jackett_url_two', finalUrl);
-        Lampa.Storage.set('jackett_key_two', (p.settings && p.settings.key) || '');
-        Lampa.Storage.set('parser_use_link', 'both');
-    }
-
-    function activeShortName() {
-        var currentUrl = Lampa.Storage.get('jackett_url_two', '');
-        if (!currentUrl) return '—';
-
-        var normCurrent = normalizeUrl(stripProxy(currentUrl));
-        var list = getParsers();
-
-        for (var i = 0; i < list.length; i++) {
-            var normListUrl = normalizeUrl(stripProxy(list[i].url));
-            var normDisplayUrl = normalizeUrl(stripProxy(list[i].displayUrl));
-            
-            if (normListUrl === normCurrent || (normDisplayUrl && normDisplayUrl === normCurrent)) {
-                Lampa.Storage.set(STORAGE_SEC_ACT, i);
-                return list[i].shortName || list[i].name;
-            }
-        }
-        
-        return 'Ручная настр.'; 
-    }
-
-    function reloadTorrents() {
-        var a = Lampa.Activity.active();
-        if (!a || a.component !== 'torrents') return;
-        Lampa.Activity.replace({
-            component: 'torrents', url: a.url, title: a.title, search: a.search, search_one: a.search_one, search_two: a.search_two, movie: a.movie, page: 1, params: a.params
-        });
-    }
-
-    var ICON = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:1.4em;height:1.4em;min-width:1.4em;min-height:1.4em;vertical-align:middle;fill:currentColor;flex-shrink:0"><use xlink:href="#sprite-folder"></use></svg>';
-
-    function buildSecondaryButton() {
-        var btn = $('<div class="simple-button simple-button--filter selector filter--parser">' + ICON + '<div class="ps-name">' + activeShortName() + '</div></div>');
-        // Используем только hover:enter от дублирования
-        btn.on('hover:enter', function () { openSecondarySelectMenu(btn); });
-        return btn;
-    }
-
-    function updateBtnName(btn) { 
-        btn.find('.ps-name').text(activeShortName()); 
-    }
-
-    function tryInjectSecondaryButton(torrentFilter) {
-        if (torrentFilter.find('.filter--parser').length) return;
-        var btn = buildSecondaryButton();
-        var search = torrentFilter.find('.filter--search');
-        if (search.length) btn.insertAfter(search);
-        else {
-            var sort = torrentFilter.find('.filter--sort');
-            if (sort.length) btn.insertBefore(sort); else torrentFilter.prepend(btn);
-        }
-    }
-
-    function openSecondarySelectMenu(btn) {
-        var list = getParsers();
-        var currentUrl = normalizeUrl(stripProxy(Lampa.Storage.get('jackett_url_two', '')));
-        var active = -1;
-        
-        for (var i = 0; i < list.length; i++) {
-            if (normalizeUrl(stripProxy(list[i].url)) === currentUrl || normalizeUrl(stripProxy(list[i].displayUrl)) === currentUrl) {
-                active = i; break;
+            } else {
+                // Фоллбэк для локальных IP (HTTP) и старых WebView
+                fallbackCopy(text, showSuccess, showError);
             }
         }
 
-        var enabled = Lampa.Controller.enabled().name;
-
-        var items = list.map(function (p, i) {
-            var sub = p.displayUrl ? p.displayUrl : withProto(stripProxy(p.url));
-            if (p.settings && p.settings.key) sub += '  |  apikey: ' + p.settings.key;
+        function fallbackCopy(text, onSuccess, onError) {
+            let textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.top = "-9999px";
+            textArea.style.left = "-9999px";
+            textArea.style.opacity = "0";
             
-            var dotHtml = '<span class="sec-dot" data-base="' + p.base + '" style="display:inline-block; width:0.55em; height:0.55em; border-radius:50%; background-color:' + COLOR_WARN + '; margin-right:0.6em; box-shadow:0 0 0.6em rgba(0,0,0,0.35); vertical-align:middle;"></span>';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
             
-            return { 
-                title: dotHtml + p.name, 
-                subtitle: sub, 
-                selected: i === active, 
-                myIdx: i 
-            };
-        });
-        
-        items.push({ title: 'Управление парсерами…', manage: true });
+            try {
+                let successful = document.execCommand('copy');
+                if (successful) onSuccess();
+                else if (onError) onError();
+            } catch (err) {
+                if (onError) onError();
+            }
+            
+            document.body.removeChild(textArea);
+        }
 
-        Lampa.Select.show({
-            title: 'Выбор дополнительного парсера', items: items,
-            onSelect: function (item) {
-                if (item.manage) openManageMenu(btn, enabled);
-                else {
-                    Lampa.Storage.set(STORAGE_SEC_ACT, item.myIdx);
-                    applySecondaryParser(item.myIdx); 
-                    updateBtnName(btn);
-                    Lampa.Noty.show('Парсер: ' + activeShortName());
-                    Lampa.Controller.toggle(enabled); 
-                    reloadTorrents();
-                }
-            },
-            onBack: function () { Lampa.Controller.toggle(enabled); }
-        });
+        // Слушаем инициализацию компонентов приложения
+        Lampa.Listener.follow('component', function (e) {
+            // Отслеживаем открытие компонента с торрентами
+            if ((e.type == 'torrents' || e.type == 'torrent') && e.object) {
+                let original_menu = e.object.menu;
+                
+                if (typeof original_menu === 'function') {
+                    // Перехватываем вызов контекстного меню раздачи
+                    e.object.menu = function (element) {
+                        let original_show = Lampa.Select.show;
+                        
+                        // Временно подменяем отрисовку меню, чтобы добавить наши пункты
+                        Lampa.Select.show = function (params) {
+                            Lampa.Select.show = original_show; // Сразу возвращаем оригинальный метод
+                            
+                            if (params && params.items && element) {
+                                let links = getLinks(element);
+                                let original_onSelect = params.onSelect;
 
-        runHealthChecks(list).then(function (map) {
-            list.forEach(function(p) {
-                var st = map[p.base];
-                var color = st ? st.color : COLOR_UNKNOWN;
-                $('.sec-dot[data-base="' + p.base + '"]').css('background-color', color);
-            });
-        });
-    }
-
-    function openManageMenu(btn, enabled) {
-        var list = getParsers();
-        var items = list.map(function (p, i) {
-            var sub = p.displayUrl ? p.displayUrl : withProto(stripProxy(p.url));
-            if (p.settings && p.settings.key) sub += '  |  apikey: ' + p.settings.key;
-            return { title: p.name, subtitle: sub, myIdx: i };
-        });
-        
-        items.push({ title: '+ Добавить парсер', add: true });
-        items.push({ title: 'Сбросить по умолчанию', reset: true });
-
-        Lampa.Select.show({
-            title: 'Управление парсерами', items: items,
-            onSelect: function (item) {
-                if (item.add) {
-                    inputDialog('Полное название', '', function (name) {
-                        if (!name) return;
-                        setTimeout(function() { 
-                            inputDialog('Короткое название (для кнопки)', name, function (shortName) {
-                                setTimeout(function() {
-                                    inputDialog('URL (без протокола, например: jacred.ru)', '', function (url) {
-                                        setTimeout(function() {
-                                            inputDialog('API-ключ (или оставьте пустым)', '', function (key) {
-                                                var l = getParsers();
-                                                var cleanUrl = stripProxy(url || '').trim().replace(/^https?:\/\//i, '');
-                                                l.push({ 
-                                                    base: 'base_' + Date.now(), 
-                                                    name: name.trim(), 
-                                                    shortName: (shortName || name).trim(), 
-                                                    url: cleanUrl, 
-                                                    settings: { key: (key || '').trim(), parser_torrent_type: 'jackett' } 
-                                                });
-                                                saveParsers(l);
-                                                Lampa.Noty.show('Добавлено: ' + name.trim()); 
-                                                Lampa.Controller.toggle(enabled);
-                                            });
-                                        }, 350);
+                                // Добавляем пункты только если ссылка реально существует в раздаче
+                                if (links.magnet) {
+                                    params.items.push({
+                                        title: 'Скопировать Magnet-ссылку',
+                                        copy_url: links.magnet,
+                                        copy_msg: 'Magnet-ссылка скопирована в буфер'
                                     });
-                                }, 350);
-                            });
-                        }, 350);
-                    });
-                } else if (item.reset) {
-                    saveParsers(DEFAULT_PARSERS);
-                    Lampa.Storage.set(STORAGE_SEC_ACT, 0);
-                    updateBtnName(btn);
-                    Lampa.Noty.show('Список восстановлен');
-                    Lampa.Controller.toggle(enabled);
-                } else {
-                    editMenu(item.myIdx, btn, enabled);
-                }
-            },
-            onBack: function () { Lampa.Controller.toggle(enabled); }
-        });
-    }
+                                }
 
-    function editMenu(idx, btn, enabled) {
-        var list = getParsers();
-        var p = list[idx];
-        Lampa.Select.show({
-            title: p.name,
-            items: [ 
-                { title: 'Изменить URL', action: 'url' }, 
-                { title: 'Изменить API-ключ', action: 'apikey' }, 
-                { title: 'Переименовать', action: 'rename' }, 
-                { title: 'Удалить', action: 'delete' } 
-            ],
-            onSelect: function (item) {
-                if (item.action === 'delete') {
-                    list.splice(idx, 1); 
-                    saveParsers(list);
-                    updateBtnName(btn); 
-                    Lampa.Noty.show('Удалено'); 
-                    Lampa.Controller.toggle(enabled);
-                } else if (item.action === 'url') {
-                    inputDialog('Новый URL (без протокола)', stripProxy(p.url), function (val) {
-                        list[idx].url = stripProxy(val || '').trim().replace(/^https?:\/\//i, '');
-                        if (list[idx].displayUrl) delete list[idx].displayUrl;
-                        saveParsers(list); 
-                        updateBtnName(btn);
-                        Lampa.Noty.show('URL обновлен'); 
-                        Lampa.Controller.toggle(enabled);
-                    });
-                } else if (item.action === 'apikey') {
-                    inputDialog('API-ключ', (p.settings && p.settings.key) || '', function (val) {
-                        if (!list[idx].settings) list[idx].settings = {};
-                        list[idx].settings.key = (val || '').trim(); 
-                        saveParsers(list);
-                        updateBtnName(btn);
-                        Lampa.Noty.show('API-ключ обновлен'); 
-                        Lampa.Controller.toggle(enabled);
-                    });
-                } else if (item.action === 'rename') {
-                    inputDialog('Новое полное название', p.name, function (nameVal) {
-                        if (!nameVal) return;
-                        setTimeout(function() { 
-                            inputDialog('Новое короткое название', p.shortName || nameVal, function (shortVal) {
-                                list[idx].name = nameVal.trim(); 
-                                list[idx].shortName = (shortVal || nameVal).trim();
-                                saveParsers(list); 
-                                updateBtnName(btn);
-                                Lampa.Noty.show('Переименовано'); 
-                                Lampa.Controller.toggle(enabled);
-                            });
-                        }, 350);
-                    });
-                }
-            },
-            onBack: function () { Lampa.Controller.toggle(enabled); }
-        });
-    }
+                                if (links.direct) {
+                                    params.items.push({
+                                        title: 'Скопировать .torrent ссылку',
+                                        copy_url: links.direct,
+                                        copy_msg: 'Прямая ссылка на .torrent скопирована'
+                                    });
+                                }
 
-    function inputDialog(title, value, cb) {
-        if (Lampa.Input && typeof Lampa.Input.edit === 'function') {
-            Lampa.Input.edit({
-                title: title,
-                value: value || '',
-                free: true,
-                nosave: true
-            }, function (new_val) {
-                cb(new_val);
-            });
-        } else {
-            var res = prompt(title, value || '');
-            if (res !== null) cb(res);
-        }
-    }
-
-    var secondaryObserver = null;
-
-    function startSecondaryObserver() {
-        if (secondaryObserver) return;
-        secondaryObserver = new MutationObserver(function () {
-            var activity = Lampa.Activity.active();
-            if (activity && activity.component !== 'torrents') return;
-            
-            var el = $('.torrent-filter');
-            if (el.length && !el.find('.filter--parser').length) {
-                tryInjectSecondaryButton(el);
-            }
-        });
-        secondaryObserver.observe(document.body, { childList: true, subtree: true });
-    }
-
-    function stopSecondaryObserver() {
-        if (secondaryObserver) {
-            secondaryObserver.disconnect();
-            secondaryObserver = null;
-        }
-    }
-
-    function initSecondaryPlugin() {
-        var isFixingUrl = false;
-        
-        Lampa.Storage.listener.follow('change', function (e) {
-            if (!isFixingUrl && (e.name === 'jackett_url' || e.name === 'jackett_url_two' || e.name === 'prowlarr_url')) {
-                var targetType = (e.name === 'jackett_url_two') ? 'secondary' : 'primary';
-                if (e.value) {
-                    var expectedUrl = applyProxy(e.value, targetType);
-                    if (expectedUrl !== e.value) {
-                        isFixingUrl = true;
-                        Lampa.Storage.set(e.name, expectedUrl);
-                        updateStandardFieldsUI();
-                        setTimeout(function(){ isFixingUrl = false; }, 150);
-                    }
-                }
-            }
-            
-            if (e.name === 'activity') {
-                var activity = Lampa.Activity.active();
-                if (activity && activity.component === 'torrents') {
-                    startSecondaryObserver();
-                    setTimeout(function() {
-                        var el = $('.torrent-filter');
-                        if (el.length) tryInjectSecondaryButton(el);
-                    }, 100);
-                    setTimeout(function() {
-                        var el = $('.torrent-filter');
-                        if (el.length) tryInjectSecondaryButton(el);
-                    }, 800);
-                } else {
-                    stopSecondaryObserver();
+                                // Обрабатываем нажатие
+                                params.onSelect = function (item) {
+                                    if (item && item.copy_url) {
+                                        copyText(item.copy_url, item.copy_msg);
+                                    } else if (original_onSelect) {
+                                        // Если нажали стандартный пункт Lampa (Добавить, Пометить и т.д.)
+                                        original_onSelect(item);
+                                    }
+                                };
+                            }
+                            
+                            return original_show(params);
+                        };
+                        
+                        original_menu.call(e.object, element);
+                        Lampa.Select.show = original_show; // Страховка
+                    };
                 }
             }
         });
-
-        var activity = Lampa.Activity.active();
-        if (activity && activity.component === 'torrents') {
-            startSecondaryObserver();
-            var el = $('.torrent-filter');
-            if (el.length) tryInjectSecondaryButton(el);
-        }
     }
 
-    // ---- НАЧАЛО БЛОКА: Глобальная защита от вызова "Меню Выхода" на смартфонах ----
-    function initMobileBackProtection() {
-        if (window.__bat_parser_back_protected) return;
-        window.__bat_parser_back_protected = true;
-
-        // Перехватываем штатный обработчик Назад контроллера
-        var origControllerBack = Lampa.Controller.back;
-        Lampa.Controller.back = function () {
-            if ($('.bat-parser-modal').length > 0) {
-                Lampa.Modal.close();
-                return true; // Говорим Lampa, что закрыли окно, дальше ничего делать не нужно!
-            }
-            if (origControllerBack) return origControllerBack.apply(this, arguments);
-        };
-
-        // Перехватываем штатный обработчик Назад активности (чтобы не открывалось окно "Выход из приложения")
-        if (Lampa.Activity && Lampa.Activity.back) {
-            var origActivityBack = Lampa.Activity.back;
-            Lampa.Activity.back = function () {
-                if ($('.bat-parser-modal').length > 0) {
-                    Lampa.Modal.close();
-                    return true; // Говорим Lampa, что закрыли окно, не нужно вызывать меню выхода!
-                }
-                if (origActivityBack) return origActivityBack.apply(this, arguments);
-            };
-        }
+    // Запуск плагина при готовности приложения
+    if (window.appready) initPlugin();
+    else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type == 'ready') initPlugin();
+        });
     }
-    // ---- КОНЕЦ БЛОКА ----
-
-    function initAll() {
-        Lampa.Lang.add = Lampa.Lang.add || function() {};
-        translate();
-        initPrimarySettings();
-        initSecondaryPlugin();
-        initTopBarListener();
-        initMobileBackProtection();
-        console.log('[CombinedParserPlugin V13 - Ultimate RU + TopBar + ProxyFallbacks] Loaded successfully');
-    }
-
-    if (!window.plugin_combined_parser_ready) {
-        window.plugin_combined_parser_ready = true;
-        if (window.appready || (window.Lampa && window.Lampa.Storage)) initAll();
-        else {
-            document.addEventListener('lampa:ready', initAll);
-            if (window.Lampa && window.Lampa.Listener) Lampa.Listener.follow('app', function (e) { if (e.type === 'ready') initAll(); });
-        }
-    }
-
 })();
