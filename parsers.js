@@ -202,6 +202,7 @@
         });
     }
 
+    // ---- НАЧАЛО БЛОКА: Улучшенная генерация ссылок с прокси-фоллбеком ----
     function healthUrlCandidates(parser) {
         var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
         var type = (parser.settings && parser.settings.parser_torrent_type) || 'jackett';
@@ -210,10 +211,39 @@
         var cleanUrl = stripProxy(parser.url); 
         var protos = protocolCandidatesFor(cleanUrl);
         
-        return protos.map(function (p) { 
+        var urls = protos.map(function (p) { 
             return p + cleanUrl + path; 
         });
+
+        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для проверки
+        var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
+        if (proxyVal === true || proxyVal === 'true') {
+            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
+            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
+        }
+        return urls;
     }
+
+    function deepSearchUrlCandidates(parser, query) {
+        var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
+        var path = '/api/v2.0/indexers/all/results?apikey=' + key + '&Query=' + encodeURIComponent(query) + '&Category=2000';
+        
+        var cleanUrl = stripProxy(parser.url);
+        var protos = protocolCandidatesFor(cleanUrl);
+        
+        var urls = protos.map(function (p) { 
+            return p + cleanUrl + path; 
+        });
+
+        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для поиска
+        var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
+        if (proxyVal === true || proxyVal === 'true') {
+            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
+            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
+        }
+        return urls;
+    }
+    // ---- КОНЕЦ БЛОКА ----
 
     function runHealthChecks(parsers) {
         var map = {};
@@ -234,18 +264,6 @@
             });
         });
         return Promise.all(requests).then(function () { return map; });
-    }
-
-    function deepSearchUrlCandidates(parser, query) {
-        var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
-        var path = '/api/v2.0/indexers/all/results?apikey=' + key + '&Query=' + encodeURIComponent(query) + '&Category=2000';
-        
-        var cleanUrl = stripProxy(parser.url);
-        var protos = protocolCandidatesFor(cleanUrl);
-        
-        return protos.map(function (p) { 
-            return p + cleanUrl + path; 
-        });
     }
 
     function runDeepSearchChecks(parsers) {
@@ -321,7 +339,7 @@
     var modalOpenLock = false;
 
     function openParserModal() {
-        // Если окно уже открывается или уже висит на экране - игнорируем нажатие!
+        // Если окно уже открывается или уже висит на экране - игнорируем нажатие
         if (modalOpenLock || $('.bat-parser-modal').length > 0) return;
         modalOpenLock = true;
         setTimeout(function () { modalOpenLock = false; }, 600);
@@ -869,7 +887,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V12 - Ultimate RU + TopBar] Loaded successfully');
+        console.log('[CombinedParserPlugin V13 - Ultimate RU + TopBar + ProxyFallbacks] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
