@@ -420,10 +420,9 @@
         var btn = $(
             '<div class="head__action selector bat-top-parser-btn" title="' + Lampa.Lang.translate('bat_parser') + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">' +
-                    '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>' +
-                    '<rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>' +
-                    '<line x1="6" y1="6" x2="6.01" y2="6"></line>' +
-                    '<line x1="6" y1="18" x2="6.01" y2="18"></line>' +
+                    '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"></path>' +
+                    '<path d="m5 8 4 4"></path>' +
+                    '<path d="m12 15 4 4"></path>' +
                 '</svg>' +
             '</div>'
         );
