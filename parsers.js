@@ -1,19 +1,21 @@
 (function () {
     'use strict';
 
-    var STORAGE_PARSERS = 'ps_list_combo_v4.2';
+    // Изменено на v4.3, чтобы ТВ автоматически подхватил новый список парсеров без сброса кэша!
+    var STORAGE_PARSERS = 'ps_list_combo_v4.3';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.2';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.3';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
+    // Обновленный список парсеров (jacred.ru и jacred.xyz вместо старых)
     var DEFAULT_PARSERS = [
         { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
         { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
         { base: 'spawnum_duckdns_org_59117', shortName: 'Spawn (2)', name: 'SpawnUA (toloka, mazepa, etc.)', url: 'http://spawnum.duckdns.org:59117', settings: { key: '2', parser_torrent_type: 'jackett' } },
         { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacred_pro', shortName: 'Jacred.pro', name: 'Jacred.pro', url: 'jacred.pro', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacblack_ru', shortName: 'Jacblack', name: 'Jacblack.ru', url: 'jacblack.ru:9117', settings: { key: '', parser_torrent_type: 'jackett' } },
+        { base: 'jacred_ru_new', shortName: 'Jacred.ru', name: 'Jacred.ru', url: 'jacred.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
+        { base: 'jacred_xyz', shortName: 'Jacred.xyz', name: 'Jacred.xyz', url: 'jacred.xyz', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jac_red_ru', shortName: 'Jac-red.ru', name: 'Jac-red.ru', url: 'jac-red.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jac_stull', shortName: 'Jac.Stull', name: 'Jac.stull', url: 'jac.stull.xyz', settings: { key: '1', parser_torrent_type: 'jackett' } },
         { base: 'jr_maxvol', shortName: 'Jr.Maxvol', name: 'Jr.Maxvol.pro', url: 'jr.maxvol.pro', settings: { key: '', parser_torrent_type: 'jackett' } },
@@ -93,32 +95,33 @@
         if (j_url2) Lampa.Storage.set('jackett_url_two', applyProxy(j_url2, 'secondary'));
     }
 
+    // Полный перевод всех строк на русский язык
     function translate() {
         Lampa.Lang.add({
-            bat_parser: { en: 'Parsers catalog', uk: 'Каталог парсерів', zh: '解析器目录', ru: 'Каталог парсеров' },
-            bat_parser_description: { en: 'Click to select a parser from', uk: 'Натисніть для вибору парсера з', zh: '点击从目录中选择解析器', ru: 'Нажмите для выбора парсера из' },
-            bat_parser_current: { en: 'Current selection:', uk: 'Поточний вибір:', zh: '当前选择：', ru: 'Текущий выбор:' },
-            bat_parser_none: { en: 'Not selected', uk: 'Не вибрано', zh: '未选择', ru: 'Не выбрано' },
-            bat_parser_selected_label: { en: 'Selected:', uk: 'Обрано:', zh: '已选择：', ru: 'Выбрано:' },
-            bat_check_parsers: { en: 'Check parsers availability', uk: 'Перевірити доступність парсерів', zh: '检查解析器可用性', ru: 'Проверить доступность серверов' },
-            bat_check_parsers_desc: { en: 'Checks parsers availability', uk: 'Виконує перевірку доступності парсерів', zh: '执行解析器可用性检查', ru: 'Проверка доступности парсеров' },
-            bat_check_search: { en: 'Check search availability', uk: 'Перевірити доступність пошуку', zh: '检查搜索可用性', ru: 'Проверить доступность поиска' },
-            bat_check_search_desc: { en: 'Checks torrent search availability', uk: 'Виконує перевірку доступності пошуку торентів', zh: '执行种子搜索可用性检查', ru: 'Проверка поиска торрентов' },
-            bat_check_done: { en: 'Check completed', uk: 'Перевірку завершено', zh: '检查完成', ru: 'Проверка завершена' },
-            bat_status_checking_server: { en: 'Checking server…', uk: 'Перевірка сервера…', zh: '检查服务器…', ru: 'Проверка сервера…' },
-            bat_status_server_ok: { en: 'Server available', uk: 'Сервер доступний', zh: '服务器可用', ru: 'Сервер доступен' },
-            bat_status_server_warn: { en: 'Server responds (restrictions)', uk: 'Сервер відповідає (обмеження)', zh: '服务器有响应（受限）', ru: 'Сервер отвечает (ограничения)' },
-            bat_status_server_bad: { en: 'Server unavailable', uk: 'Сервер недоступний', zh: '服务器不可用', ru: 'Сервер недоступен' },
-            bat_status_unknown: { en: 'Unchecked', uk: 'Не перевірено', zh: '未检查', ru: 'Не проверено' },
-            bat_status_checking_search: { en: 'Checking search…', uk: 'Перевірка пошуку…', zh: '检查搜索…', ru: 'Проверка поиска…' },
-            bat_status_search_ok: { en: 'Search works', uk: 'Пошук працює', zh: '搜索可用', ru: 'Поиск работает' },
-            bat_status_search_bad: { en: 'Search does not work', uk: 'Пошук не працює', zh: '搜索不可用', ru: 'Поиск не работает' },
+            bat_parser: { en: 'Parsers catalog', uk: 'Каталог парсеров', zh: '解析器目录', ru: 'Каталог парсеров' },
+            bat_parser_description: { en: 'Click to select a parser from', uk: 'Нажмите для выбора парсера из', zh: '点击从目录中选择解析器', ru: 'Нажмите для выбора парсера из' },
+            bat_parser_current: { en: 'Current selection:', uk: 'Текущий выбор:', zh: '当前选择：', ru: 'Текущий выбор:' },
+            bat_parser_none: { en: 'Not selected', uk: 'Не выбрано', zh: '未选择', ru: 'Не выбрано' },
+            bat_parser_selected_label: { en: 'Selected:', uk: 'Выбрано:', zh: '已选择：', ru: 'Выбрано:' },
+            bat_check_parsers: { en: 'Check parsers availability', uk: 'Проверить доступность серверов', zh: '检查解析器可用性', ru: 'Проверить доступность серверов' },
+            bat_check_parsers_desc: { en: 'Checks parsers availability', uk: 'Проверка доступности парсеров', zh: '执行解析器可用性检查', ru: 'Проверка доступности парсеров' },
+            bat_check_search: { en: 'Check search availability', uk: 'Проверить доступность поиска', zh: '检查搜索可用性', ru: 'Проверить доступность поиска' },
+            bat_check_search_desc: { en: 'Checks torrent search availability', uk: 'Проверка поиска торрентов', zh: '执行种子搜索可用性检查', ru: 'Проверка поиска торрентов' },
+            bat_check_done: { en: 'Check completed', uk: 'Проверка завершена', zh: '检查完成', ru: 'Проверка завершена' },
+            bat_status_checking_server: { en: 'Checking server…', uk: 'Проверка сервера…', zh: '检查服务器…', ru: 'Проверка сервера…' },
+            bat_status_server_ok: { en: 'Server available', uk: 'Сервер доступен', zh: '服务器可用', ru: 'Сервер доступен' },
+            bat_status_server_warn: { en: 'Server responds (restrictions)', uk: 'Сервер отвечает (ограничения)', zh: '服务器有响应（受限）', ru: 'Сервер отвечает (ограничения)' },
+            bat_status_server_bad: { en: 'Server unavailable', uk: 'Сервер недоступен', zh: '服务器不可用', ru: 'Сервер недоступен' },
+            bat_status_unknown: { en: 'Unchecked', uk: 'Не проверено', zh: '未检查', ru: 'Не проверено' },
+            bat_status_checking_search: { en: 'Checking search…', uk: 'Проверка поиска…', zh: '检查搜索…', ru: 'Проверка поиска…' },
+            bat_status_search_ok: { en: 'Search works', uk: 'Поиск работает', zh: '搜索可用', ru: 'Поиск работает' },
+            bat_status_search_bad: { en: 'Search does not work', uk: 'Поиск не работает', zh: '搜索不可用', ru: 'Поиск не работает' },
             
-            bat_parser_proxy: { en: 'Enable proxy', uk: 'Включити проксі', zh: '启用代理', ru: 'Включить прокси' },
-            bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Додає проксі перед адресою парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
+            bat_parser_proxy: { en: 'Enable proxy', uk: 'Включить прокси', zh: '启用代理', ru: 'Включить прокси' },
+            bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Добавляет прокси перед адресом парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
             
-            bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для якого парсера (проксі)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
-            bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Оберіть, до якої адреси додавати проксі', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' }
+            bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для какого парсера (прокси)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
+            bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' }
         });
     }
 
@@ -141,8 +144,9 @@
         }
     };
 
+    // Отключен вывод уведомления "Проверка завершена", чтобы не мешало
     function notifyDone() {
-        
+        // Уведомление отключено
     }
 
     function getSelectedBase() { 
@@ -314,9 +318,6 @@
         wrapper.find('.bat-parser-modal__current-value').text(parser ? parser.name : Lampa.Lang.translate('bat_parser_none'));
     }
 
-    // ---------------------------------------------------------
-    // ГЛАВНОЕ МОДАЛЬНОЕ ОКНО ВЫБОРА ПАРСЕРА
-    // ---------------------------------------------------------
     function openParserModal() {
         injectStyleOnce();
         var selected = getSelectedBase();
@@ -384,8 +385,6 @@
         btnSearch.on('hover:enter', runSearchUI);
 
         var firstSelectable = list.find('.bat-parser-modal__item').first();
-        
-        // Определяем, откуда открыто окно (из настроек или с кнопки в шапке), чтобы правильно вернуться
         var active_component = Lampa.Controller.enabled().name;
         
         Lampa.Modal.open({
@@ -403,15 +402,12 @@
         runHealthUI();
     }
 
-    // ---------------------------------------------------------
-    // НОВОЕ: ДОБАВЛЕНИЕ КНОПКИ В ВЕРХНИЙ БАР (ШАПКУ ПРИЛОЖЕНИЯ)
-    // ---------------------------------------------------------
+    // Добавление кнопки (с иконкой магнита 🧲) в верхний бар
     function addTopBarButton() {
         if ($('.bat-top-parser-btn').length) return;
         var head_actions = $('.head__actions');
         if (!head_actions.length) return;
 
-        // Создаем иконку серверов в стиле верхнего меню Lampa
         var btn = $(
             '<div class="head__action selector bat-top-parser-btn" title="' + Lampa.Lang.translate('bat_parser') + '">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">' +
@@ -422,12 +418,10 @@
             '</div>'
         );
 
-        // При нажатии пультом или мышкой открываем то самое окно выбора
         btn.on('hover:enter click', function () {
             openParserModal();
         });
 
-        // Вставляем кнопку в самое начало блока иконок шапки
         head_actions.prepend(btn);
     }
 
@@ -489,9 +483,9 @@
                 name: 'parser_proxy_target',
                 type: 'select',
                 values: {
-                    primary: 'Тільки для основного',
-                    secondary: 'Тільки для додаткового',
-                    both: 'Для обох (Основний + Додатковий)'
+                    primary: 'Только для основного',
+                    secondary: 'Только для дополнительного',
+                    both: 'Для обоих (Основной + Дополнительный)'
                 },
                 default: 'both'
             },
@@ -549,7 +543,7 @@
             }
         }
         
-        return 'Ручне нал.'; 
+        return 'Ручная настр.'; 
     }
 
     function reloadTorrents() {
@@ -610,10 +604,10 @@
             };
         });
         
-        items.push({ title: 'Керування парсерами…', manage: true });
+        items.push({ title: 'Управление парсерами…', manage: true });
 
         Lampa.Select.show({
-            title: 'Вибір додаткового парсера', items: items,
+            title: 'Выбор дополнительного парсера', items: items,
             onSelect: function (item) {
                 if (item.manage) openManageMenu(btn, enabled);
                 else {
@@ -645,21 +639,21 @@
             return { title: p.name, subtitle: sub, myIdx: i };
         });
         
-        items.push({ title: '+ Додати парсер', add: true });
-        items.push({ title: 'Скинути за замовчуванням', reset: true });
+        items.push({ title: '+ Добавить парсер', add: true });
+        items.push({ title: 'Сбросить по умолчанию', reset: true });
 
         Lampa.Select.show({
-            title: 'Керування парсерами', items: items,
+            title: 'Управление парсерами', items: items,
             onSelect: function (item) {
                 if (item.add) {
-                    inputDialog('Повна назва', '', function (name) {
+                    inputDialog('Полное название', '', function (name) {
                         if (!name) return;
                         setTimeout(function() { 
-                            inputDialog('Коротка назва (для кнопки)', name, function (shortName) {
+                            inputDialog('Короткое название (для кнопки)', name, function (shortName) {
                                 setTimeout(function() {
-                                    inputDialog('URL (без протоколу, наприклад: jac.red)', '', function (url) {
+                                    inputDialog('URL (без протокола, например: jacred.ru)', '', function (url) {
                                         setTimeout(function() {
-                                            inputDialog('API-ключ (або залиште порожнім)', '', function (key) {
+                                            inputDialog('API-ключ (или оставьте пустым)', '', function (key) {
                                                 var l = getParsers();
                                                 var cleanUrl = stripProxy(url || '').trim().replace(/^https?:\/\//i, '');
                                                 l.push({ 
@@ -670,7 +664,7 @@
                                                     settings: { key: (key || '').trim(), parser_torrent_type: 'jackett' } 
                                                 });
                                                 saveParsers(l);
-                                                Lampa.Noty.show('Додано: ' + name.trim()); 
+                                                Lampa.Noty.show('Добавлено: ' + name.trim()); 
                                                 Lampa.Controller.toggle(enabled);
                                             });
                                         }, 350);
@@ -683,7 +677,7 @@
                     saveParsers(DEFAULT_PARSERS);
                     Lampa.Storage.set(STORAGE_SEC_ACT, 0);
                     updateBtnName(btn);
-                    Lampa.Noty.show('Список відновлено');
+                    Lampa.Noty.show('Список восстановлен');
                     Lampa.Controller.toggle(enabled);
                 } else {
                     editMenu(item.myIdx, btn, enabled);
@@ -699,25 +693,25 @@
         Lampa.Select.show({
             title: p.name,
             items: [ 
-                { title: 'Змінити URL', action: 'url' }, 
-                { title: 'Змінити API-ключ', action: 'apikey' }, 
-                { title: 'Перейменувати', action: 'rename' }, 
-                { title: 'Видалити', action: 'delete' } 
+                { title: 'Изменить URL', action: 'url' }, 
+                { title: 'Изменить API-ключ', action: 'apikey' }, 
+                { title: 'Переименовать', action: 'rename' }, 
+                { title: 'Удалить', action: 'delete' } 
             ],
             onSelect: function (item) {
                 if (item.action === 'delete') {
                     list.splice(idx, 1); 
                     saveParsers(list);
                     updateBtnName(btn); 
-                    Lampa.Noty.show('Видалено'); 
+                    Lampa.Noty.show('Удалено'); 
                     Lampa.Controller.toggle(enabled);
                 } else if (item.action === 'url') {
-                    inputDialog('Новий URL (без протоколу)', stripProxy(p.url), function (val) {
+                    inputDialog('Новый URL (без протокола)', stripProxy(p.url), function (val) {
                         list[idx].url = stripProxy(val || '').trim().replace(/^https?:\/\//i, '');
                         if (list[idx].displayUrl) delete list[idx].displayUrl;
                         saveParsers(list); 
                         updateBtnName(btn);
-                        Lampa.Noty.show('URL оновлено'); 
+                        Lampa.Noty.show('URL обновлен'); 
                         Lampa.Controller.toggle(enabled);
                     });
                 } else if (item.action === 'apikey') {
@@ -726,19 +720,19 @@
                         list[idx].settings.key = (val || '').trim(); 
                         saveParsers(list);
                         updateBtnName(btn);
-                        Lampa.Noty.show('API-ключ оновлено'); 
+                        Lampa.Noty.show('API-ключ обновлен'); 
                         Lampa.Controller.toggle(enabled);
                     });
                 } else if (item.action === 'rename') {
-                    inputDialog('Нова повна назва', p.name, function (nameVal) {
+                    inputDialog('Новое полное название', p.name, function (nameVal) {
                         if (!nameVal) return;
                         setTimeout(function() { 
-                            inputDialog('Нова коротка назва', p.shortName || nameVal, function (shortVal) {
+                            inputDialog('Новое короткое название', p.shortName || nameVal, function (shortVal) {
                                 list[idx].name = nameVal.trim(); 
                                 list[idx].shortName = (shortVal || nameVal).trim();
                                 saveParsers(list); 
                                 updateBtnName(btn);
-                                Lampa.Noty.show('Перейменовано'); 
+                                Lampa.Noty.show('Переименовано'); 
                                 Lampa.Controller.toggle(enabled);
                             });
                         }, 350);
@@ -836,8 +830,8 @@
         translate();
         initPrimarySettings();
         initSecondaryPlugin();
-        initTopBarListener(); // Запуск слежения и добавления кнопки в шапку
-        console.log('[CombinedParserPlugin V12 - Ultimate Sync + TopBar] Loaded successfully');
+        initTopBarListener();
+        console.log('[CombinedParserPlugin V12 - Ultimate RU + TopBar] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
