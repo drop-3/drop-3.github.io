@@ -317,7 +317,15 @@
         wrapper.find('.bat-parser-modal__current-value').text(parser ? parser.name : Lampa.Lang.translate('bat_parser_none'));
     }
 
+    // Блокировка от случайного дублирования окон на сенсорном экране
+    var modalOpenLock = false;
+
     function openParserModal() {
+        // Если окно уже открывается или уже висит на экране - игнорируем нажатие!
+        if (modalOpenLock || $('.bat-parser-modal').length > 0) return;
+        modalOpenLock = true;
+        setTimeout(function () { modalOpenLock = false; }, 600);
+
         injectStyleOnce();
         var selected = getSelectedBase();
         var listData = getParsers();
@@ -384,71 +392,18 @@
         btnSearch.on('hover:enter', runSearchUI);
 
         var firstSelectable = list.find('.bat-parser-modal__item').first();
-        var active_component = Lampa.Controller.enabled().name;
+        var active_component = Lampa.Controller.enabled() ? Lampa.Controller.enabled().name : '';
         
-        // ---- НАЧАЛО БЛОКА: Фикс для закрытия жестами и кнопкой на смартфонах ----
-        var modalClosed = false;
-        var closeModal = function() {
-            if (modalClosed) return;
-            modalClosed = true;
-            
-            // Удаляем слушатели мобильных событий
-            document.removeEventListener('backbutton', onMobileBack, false);
-            window.removeEventListener('popstate', onMobileBack, false);
-
-            Lampa.Modal.close(); 
-            if (active_component === 'settings_component' || active_component === 'settings') {
-                Lampa.Controller.toggle('settings_component'); 
-            } else {
-                Lampa.Controller.toggle(active_component);
-            }
-        };
-
-        var onMobileBack = function(e) {
-            if (e && e.preventDefault) e.preventDefault();
-            closeModal();
-        };
-
-        // Подписываемся на системные события кнопки/жеста "Назад" (Android / Webview / Браузер)
-        document.addEventListener('backbutton', onMobileBack, false);
-        window.addEventListener('popstate', onMobileBack, false);
-
-        // Регистрируем отдельный контроллер для окна, чтобы жесты смартфона попадали в Lampa
-        Lampa.Controller.add('bat_parser_modal', {
-            toggle: function () {
-                Lampa.Controller.collectionSet(modal);
-                Lampa.Controller.collectionFocus(firstSelectable[0], modal);
-            },
-            left: function () {
-                if (Navigator.canmove('left')) Navigator.move('left');
-            },
-            right: function () {
-                if (Navigator.canmove('right')) Navigator.move('right');
-            },
-            up: function () {
-                if (Navigator.canmove('up')) Navigator.move('up');
-            },
-            down: function () {
-                if (Navigator.canmove('down')) Navigator.move('down');
-            },
-            back: function () {
-                closeModal();
-            },
-            onBack: function () {
-                closeModal();
-            }
-        });
-        // ---- КОНЕЦ БЛОКА ----
-
         Lampa.Modal.open({
             title: Lampa.Lang.translate('bat_parser'), html: modal, size: 'medium', scroll_to_center: true, select: firstSelectable,
             onBack: function () { 
-                closeModal();
+                Lampa.Modal.close(); 
+                // Восстанавливаем фокус только если это не мобильный тач-контроллер
+                if (active_component && active_component !== 'modal' && active_component !== 'touch') {
+                    Lampa.Controller.toggle(active_component); 
+                }
             }
         });
-
-        // Переключаем управление на созданный контроллер модального окна
-        Lampa.Controller.toggle('bat_parser_modal');
 
         runHealthUI();
     }
@@ -469,7 +424,8 @@
             '</div>'
         );
 
-        btn.on('hover:enter click', function () {
+        // Используем ТОЛЬКО hover:enter, чтобы не было двойного открытия на тачскринах смартфонов
+        btn.on('hover:enter', function () {
             openParserModal();
         });
 
@@ -609,7 +565,8 @@
 
     function buildSecondaryButton() {
         var btn = $('<div class="simple-button simple-button--filter selector filter--parser">' + ICON + '<div class="ps-name">' + activeShortName() + '</div></div>');
-        btn.on('hover:enter click', function () { openSecondarySelectMenu(btn); });
+        // Используем только hover:enter от дублирования
+        btn.on('hover:enter', function () { openSecondarySelectMenu(btn); });
         return btn;
     }
 
@@ -876,12 +833,42 @@
         }
     }
 
+    // ---- НАЧАЛО БЛОКА: Глобальная защита от вызова "Меню Выхода" на смартфонах ----
+    function initMobileBackProtection() {
+        if (window.__bat_parser_back_protected) return;
+        window.__bat_parser_back_protected = true;
+
+        // Перехватываем штатный обработчик Назад контроллера
+        var origControllerBack = Lampa.Controller.back;
+        Lampa.Controller.back = function () {
+            if ($('.bat-parser-modal').length > 0) {
+                Lampa.Modal.close();
+                return true; // Говорим Lampa, что закрыли окно, дальше ничего делать не нужно!
+            }
+            if (origControllerBack) return origControllerBack.apply(this, arguments);
+        };
+
+        // Перехватываем штатный обработчик Назад активности (чтобы не открывалось окно "Выход из приложения")
+        if (Lampa.Activity && Lampa.Activity.back) {
+            var origActivityBack = Lampa.Activity.back;
+            Lampa.Activity.back = function () {
+                if ($('.bat-parser-modal').length > 0) {
+                    Lampa.Modal.close();
+                    return true; // Говорим Lampa, что закрыли окно, не нужно вызывать меню выхода!
+                }
+                if (origActivityBack) return origActivityBack.apply(this, arguments);
+            };
+        }
+    }
+    // ---- КОНЕЦ БЛОКА ----
+
     function initAll() {
         Lampa.Lang.add = Lampa.Lang.add || function() {};
         translate();
         initPrimarySettings();
         initSecondaryPlugin();
         initTopBarListener();
+        initMobileBackProtection();
         console.log('[CombinedParserPlugin V12 - Ultimate RU + TopBar] Loaded successfully');
     }
 
