@@ -5,16 +5,15 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина v5.0 (Архитектор)...');
+        console.log('byLampa Cards Info: Запуск плагина v6.0...');
 
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards v5.0: Архитектор подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards v6.0: Тотальный перехват подключен!');
         }
 
-        // 1. Чистые стили ТОЛЬКО для плашек (не трогаем вёрстку картинок Lampa!)
+        // 1. Чистые стили ТОЛЬКО для плашек (не ломаем пропорции постеров Lampa!)
         var style = document.createElement('style');
         style.innerHTML = `
-            /* Плашки позиционируются относительно .card__view, который в Lampa уже имеет нужные границы */
             .bl-badge {
                 position: absolute !important;
                 padding: 0.35em 0.6em;
@@ -34,21 +33,21 @@
                 box-sizing: border-box;
             }
 
-            /* ↖️ Верхний левый угол: Тип */
+            /* ↖️ Верхний левый: Тип */
             .bl-badge--tl {
                 top: 0 !important; left: 0 !important;
                 background: rgba(38, 166, 91, 0.85); color: #ffffff;
                 border-bottom-right-radius: 10px;
             }
 
-            /* ↗️ Верхний правый угол: Год */
+            /* ↗️ Верхний правый: Год */
             .bl-badge--tr {
                 top: 0 !important; right: 0 !important;
                 background: rgba(20, 20, 20, 0.85); color: #ffffff;
                 border-bottom-left-radius: 10px;
             }
 
-            /* ↙️ Нижний левый угол: Качество */
+            /* ↙️ Нижний левый: Качество */
             .bl-badge--bl {
                 bottom: 0 !important; left: 0 !important;
                 border-top-right-radius: 10px;
@@ -59,7 +58,7 @@
             .bl-quality--hd { background: rgba(20, 20, 20, 0.85); color: #ffffff; }
             .bl-quality--cam { background: rgba(150, 30, 30, 0.85); color: #ffffff; }
 
-            /* ↘️ Нижний правый угол: Рейтинг */
+            /* ↘️ Нижний правый: Рейтинг */
             .bl-badge--br {
                 bottom: 0 !important; right: 0 !important;
                 background: rgba(20, 20, 20, 0.85); color: #00e5ff;
@@ -79,7 +78,7 @@
         `;
         document.head.appendChild(style);
 
-        // 2. Вспомогательные функции парсинга
+        // 2. Функции парсинга
         function getYear(data) {
             var date = data.release_date || data.first_air_date || data.year || '';
             return date ? String(date).slice(0, 4) : '';
@@ -122,29 +121,33 @@
             return '';
         }
 
-        // 3. Функция наложения плашек
-        function applyBadges(cardObj, data, attempt) {
-            attempt = attempt || 0;
+        // 3. Универсальный накладчик плашек
+        function applyBadges(cardObj, data, templateName) {
             try {
                 if (!cardObj || !data) return;
+                // Проверяем, что перед нами именно фильм или сериал
                 if (!data.title && !data.name && !data.release_date && !data.first_air_date) return;
 
                 var domCard = cardObj.nodeType ? cardObj : (cardObj[0] || cardObj.el || cardObj.card || null);
-                if (!domCard || !domCard.querySelector) return;
+                if (!domCard) return;
 
-                // Ищем родной контейнер картинки Lampa
-                var view = domCard.querySelector('.card__view');
+                // Защита от дублирования
+                if (domCard.getAttribute('data-bl-tagged')) return;
 
-                // Если .card__view ещё не собрался в DOM, ждём 30 мс и пробуем снова (до 15 раз)
-                if (!view && attempt < 15) {
-                    setTimeout(function () { applyBadges(cardObj, data, attempt + 1); }, 30);
-                    return;
+                // Ищем контейнер постера (поддержка любых версий и скинов)
+                var view = null;
+                if (domCard.classList && domCard.classList.contains('card__view')) {
+                    view = domCard;
+                } else if (domCard.querySelector) {
+                    view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
+                }
+                if (!view) return;
+
+                // Если .card__img оказался тегом <img>, прикрепляем плашки к его родителю (div), чтобы не ломать HTML
+                if (view.tagName && view.tagName.toLowerCase() === 'img') {
+                    view = view.parentNode || domCard;
                 }
 
-                if (!view) view = domCard; // Запасной вариант
-
-                // Защита от повторной отрисовки на одной карте
-                if (domCard.getAttribute('data-bl-tagged')) return;
                 domCard.setAttribute('data-bl-tagged', 'true');
 
                 // --- ↖️ Верхний левый ---
@@ -178,63 +181,59 @@
                 brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
                 view.appendChild(brBadge);
 
-                // 🎯 РАДАР: Сигнализируем об успехе!
+                // 🎯 РАДАР 6.0: Сообщаем об успехе и раскрываем имя шаблона byLampa!
                 if (!window._bl_radar_shown && window.Lampa && Lampa.Noty) {
                     window._bl_radar_shown = true;
                     var cardTitle = data.title || data.name || 'Фильм';
-                    Lampa.Noty.show('🛠 Радар: "' + cardTitle + '" — плашки установлены!');
+                    Lampa.Noty.show('🛠 Радар: шаблон "' + (templateName || 'card') + '" -> "' + cardTitle + '"');
                 }
 
             } catch (e) {
                 console.error('byLampa Cards Info: Ошибка в applyBadges', e);
-                if (!window._bl_error_shown && window.Lampa && Lampa.Noty) {
-                    window._bl_error_shown = true;
-                    Lampa.Noty.show('⚠️ Ошибка: ' + e.message);
-                }
             }
         }
 
-        // 4. ГЛАВНЫЙ ПЕРЕХВАТ: Оборачиваем конструктор Lampa.Card напрямую!
-        var old_Card = Lampa.Card;
-        Lampa.Card = function (data, card_type) {
-            // Вызываем оригинальный конструктор Lampa и получаем готовый объект карточки
-            var instance = new old_Card(data, card_type);
+        // 4. ГЛАВНЫЙ СЕКРЕТНЫЙ ПЕРЕХВАТ: Внедряемся в ядро генератора HTML (Template.get)
+        if (Lampa.Template && Lampa.Template.get) {
+            var old_template_get = Lampa.Template.get;
+            Lampa.Template.get = function (name, data) {
+                // Вызываем оригинальный генератор и получаем готовый HTML-элемент
+                var res = old_template_get.apply(this, arguments);
+                
+                // Если в генератор передали данные фильма/сериала — это 100% карточка, как бы она ни называлась!
+                if (data && typeof data === 'object' && (data.title || data.name) && (data.release_date || data.first_air_date || data.vote_average || data.id)) {
+                    // Накладываем плашки сразу и через 20 миллисекунд (для гарантии, если DOM достраивается асинхронно)
+                    applyBadges(res, data, name);
+                    setTimeout(function () { applyBadges(res, data, name); }, 20);
+                }
+                return res;
+            };
+        }
 
-            // Перехватываем метод create у конкретного созданного экземпляра
-            if (instance.create) {
-                var old_create = instance.create;
-                instance.create = function () {
-                    var res = old_create.apply(instance, arguments);
-                    // Запускаем наложение плашек сразу после того, как Lampa собрала карту
-                    setTimeout(function () { applyBadges(instance.card || res, data, 0); }, 10);
-                    return res;
-                };
-            }
-
-            // Перехватываем метод render на случай других сценариев отрисовки
-            if (instance.render) {
-                var old_render = instance.render;
-                instance.render = function () {
-                    var res = old_render.apply(instance, arguments);
-                    setTimeout(function () { applyBadges(instance.card || res, data, 0); }, 10);
-                    return res;
-                };
-            }
-
-            return instance;
-        };
-
-        // Сохраняем все оригинальные свойства конструктора (если они были)
-        for (var prop in old_Card) {
-            if (old_Card.hasOwnProperty(prop)) {
-                Lampa.Card[prop] = old_Card[prop];
+        // 5. Резервный перехват стандартного Lampa.Card (на всякий случай)
+        if (Lampa.Card) {
+            var old_Card = Lampa.Card;
+            Lampa.Card = function (data, card_type) {
+                var instance = new old_Card(data, card_type);
+                if (instance.create) {
+                    var old_create = instance.create;
+                    instance.create = function () {
+                        var res = old_create.apply(instance, arguments);
+                        setTimeout(function () { applyBadges(instance.card || res, data, 'Lampa.Card'); }, 10);
+                        return res;
+                    };
+                }
+                return instance;
+            };
+            for (var prop in old_Card) {
+                if (old_Card.hasOwnProperty(prop)) Lampa.Card[prop] = old_Card[prop];
             }
         }
     }
 
     // Надёжный цикл ожидания загрузки ядра Lampa
     function checkReady() {
-        if (window.Lampa && window.Lampa.Card) {
+        if (window.Lampa && window.Lampa.Template) {
             initPlugin();
         } else {
             setTimeout(checkReady, 100);
