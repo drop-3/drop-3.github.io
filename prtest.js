@@ -1,39 +1,85 @@
 (function () {
     'use strict';
 
+    // Версия скрипта для проверки обновления кэша
+    var VERSION = '5.0';
+
     function initPlugin() {
         if (!window.Lampa) return;
 
-        // 1. ПЕРЕХВАТ ШАБЛОНОВ (Главный секрет!)
-        // Lampa не хранит ссылки в HTML. Мы перехватываем генератор шаблонов
-        // и принудительно "приклеиваем" данные раздачи прямо к HTML-элементу.
-        if (window.Lampa.Template) {
-            let orig_template_get = Lampa.Template.get;
-            Lampa.Template.get = function (name, data) {
-                let el = orig_template_get(name, data);
-                if (data && typeof data === 'object' && el && el.data) {
-                    try {
-                        el.data('injected_torrent_data', data);
-                    } catch (e) {}
-                }
-                return el;
-            };
-        }
+        // УВЕДОМЛЕНИЕ ПРИ СТАРТЕ: выводится через 2 секунды. 
+        // Если вы его видите, значит загрузился именно новый код, а не старый кэш!
+        setTimeout(function () {
+            if (Lampa.Noty && Lampa.Noty.show) {
+                Lampa.Noty.show('[Torrents Copy v' + VERSION + '] Плагин успешно загружен!');
+            }
+        }, 2000);
 
-        let last_interacted_data = null;
+        // 1. Перехват элемента, которого коснулись пальцем, курсором или пультом
+        var last_target = null;
 
-        // 2. Отслеживаем касания, клики или наведение пульта
-        $(document).on('touchstart pointerdown mousedown mouseenter focus hover:focus', '.selector, [class*="torrent"], [class*="item"], [class*="card"]', function () {
-            let el = $(this);
-            // Ищем наши приклеенные данные на самом элементе или его родителях
-            let target = el.closest('[data-injected_torrent_data], [data-element], [data-item], [data-torrent]');
-            if (target.length) {
-                let data = target.data('injected_torrent_data') || target.data('element') || target.data('item') || target.data('torrent') || target.data('data');
-                if (data && typeof data === 'object') {
-                    last_interacted_data = data;
+        ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(function (eventType) {
+            document.addEventListener(eventType, function (e) {
+                last_target = e.target;
+            }, true); // true гарантирует перехват раньше любых скриптов приложения
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.keyCode === 13 || e.key === 'Enter') { // Кнопка ОК на пульте
+                last_target = document.activeElement || $('.focus')[0] || $('.selector.focus')[0];
+            }
+        }, true);
+
+        // 2. Рекурсивный поиск magnet и .torrent ссылок внутри любых объектов данных
+        function findLinksInObject(obj, links, depth) {
+            if (!obj || typeof obj !== 'object' || depth > 3) return;
+
+            // Если парсер отдал чистый хеш раздачи — сами собираем из него magnet
+            var hash_val = obj.hash || obj.Hash || obj.info_hash || obj.infoHash || obj.btih;
+            if (!links.magnet && hash_val && typeof hash_val === 'string') {
+                var clean_hash = hash_val.trim();
+                if (/^[a-fA-F0-9]{40}$/.test(clean_hash) || /^[a-zA-Z2-7]{32}$/.test(clean_hash)) {
+                    links.magnet = 'magnet:?xt=urn:btih:' + clean_hash;
                 }
             }
-        });
+
+            for (var key in obj) {
+                try {
+                    var val = obj[key];
+                    if (typeof val === 'string') {
+                        val = val.trim();
+                        if (val.toLowerCase().indexOf('magnet:') === 0) {
+                            links.magnet = val;
+                        } else if ((val.toLowerCase().indexOf('http') === 0 || val.toLowerCase().indexOf('ftp') === 0) &&
+                                   (val.indexOf('.torrent') !== -1 || key.toLowerCase().indexOf('link') !== -1 || key.toLowerCase().indexOf('url') !== -1 || key.toLowerCase().indexOf('file') !== -1 || key.toLowerCase().indexOf('torrent') !== -1)) {
+                            // Исключаем постеры и видеопотоки
+                            if (!links.direct && !val.match(/\.(jpg|jpeg|png|webp|gif|svg|mp4|mkv|avi|m3u8)$/i) && key.toLowerCase().indexOf('img') === -1 && key.toLowerCase().indexOf('poster') === -1) {
+                                links.direct = val;
+                            }
+                        }
+                    } else if (typeof val === 'object' && val !== null) {
+                        findLinksInObject(val, links, depth + 1);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // Поиск данных в DOM-дереве от нажатого элемента и выше
+        function getLinksFromTarget() {
+            var links = { magnet: '', direct: '' };
+            var el = $(last_target || $('.focus, .selector.focus, :focus')[0]).closest('.selector, [data-element], [data-item], [data-torrent], [data-data], .torrent-item, .card, li, div');
+            
+            // Проверяем все прикрепленные данные jQuery (.data()) на элементе и родителях
+            while (el.length && (!links.magnet && !links.direct)) {
+                var all_data = el.data() || {};
+                for (var k in all_data) {
+                    findLinksInObject(all_data[k], links, 0);
+                }
+                el = el.parent();
+                if (el.is('body') || el.is('html')) break;
+            }
+            return links;
+        }
 
         // Функция копирования в буфер обмена
         function copyText(text, successMessage) {
@@ -42,7 +88,7 @@
                 else alert(successMessage);
             }
             function showError() {
-                if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Ошибка копирования. Проверьте разрешения браузера');
+                if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Ошибка копирования. Проверьте разрешения');
                 else alert('Ошибка копирования');
             }
 
@@ -56,7 +102,7 @@
         }
 
         function fallbackCopy(text, onSuccess, onError) {
-            let textArea = document.createElement("textarea");
+            var textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
             textArea.style.top = "-9999px";
@@ -68,7 +114,7 @@
             textArea.select();
             
             try {
-                let successful = document.execCommand('copy');
+                var successful = document.execCommand('copy');
                 if (successful) onSuccess();
                 else if (onError) onError();
             } catch (err) {
@@ -78,68 +124,27 @@
             document.body.removeChild(textArea);
         }
 
-        // 3. Перехватываем открытие контекстного меню
+        // 3. Перехват отрисовки контекстного меню
         if (window.Lampa.Select) {
-            let original_select_show = Lampa.Select.show;
+            var original_select_show = Lampa.Select.show;
 
             Lampa.Select.show = function (params) {
                 if (params && params.items && Array.isArray(params.items)) {
-                    // Надежно определяем меню торрента по названиям или системным действиям (add/mark)
-                    let is_torrent_menu = params.items.some(function (item) {
-                        let title = (item.title || '').toLowerCase();
-                        let action = (item.action || '').toLowerCase();
-                        return title.includes('отметк') || title.includes('пометить') || title.includes('торрент') || 
-                               title.includes('добавить') || title.includes('мои') || action === 'add' || action === 'mark';
-                    });
+                    var links = { magnet: '', direct: '' };
+                    
+                    // Сначала ищем ссылки в параметрах самого меню
+                    findLinksInObject(params, links, 0);
 
-                    if (is_torrent_menu) {
-                        let links = { magnet: '', direct: '' };
+                    // Если там пусто, ищем в элементе, на который нажали/навели
+                    if (!links.magnet && !links.direct) {
+                        var targetLinks = getLinksFromTarget();
+                        links.magnet = targetLinks.magnet;
+                        links.direct = targetLinks.direct;
+                    }
 
-                        // Ищем наши приклеенные данные везде, где они могут быть
-                        let current_focused = $('.focus, .selector.focus, :hover').closest('[data-injected_torrent_data], [data-element], [data-item]');
-                        let search_sources = [
-                            last_interacted_data,
-                            current_focused.data('injected_torrent_data'),
-                            current_focused.data('element'),
-                            current_focused.data('item'),
-                            params.element,
-                            params.item,
-                            params.data
-                        ];
-
-                        function extractFromObj(obj) {
-                            if (!obj || typeof obj !== 'object') return;
-                            
-                            // Если парсер отдал только хеш — собираем из него magnet-ссылку сами
-                            let hash_val = obj.hash || obj.Hash || obj.info_hash || obj.infoHash || obj.btih;
-                            if (!links.magnet && hash_val && typeof hash_val === 'string') {
-                                let clean_hash = hash_val.trim();
-                                if (/^[a-fA-F0-9]{40}$/.test(clean_hash) || /^[a-zA-Z2-7]{32}$/.test(clean_hash)) {
-                                    links.magnet = 'magnet:?xt=urn:btih:' + clean_hash;
-                                }
-                            }
-
-                            // Ищем готовые ссылки во всех свойствах объекта раздачи
-                            for (let key in obj) {
-                                let val = obj[key];
-                                if (typeof val === 'string') {
-                                    val = val.trim();
-                                    if (val.toLowerCase().startsWith('magnet:')) {
-                                        links.magnet = val;
-                                    } else if ((val.toLowerCase().startsWith('http') || val.toLowerCase().startsWith('ftp')) && 
-                                               (val.includes('.torrent') || key.toLowerCase().includes('link') || key.toLowerCase().includes('url') || key.toLowerCase().includes('file') || key.toLowerCase().includes('torrent') || key.toLowerCase().includes('uri'))) {
-                                        // Отсекаем постеры и картинки
-                                        if (!links.direct && !val.match(/\.(jpg|jpeg|png|webp|gif|svg|mp4|mkv|avi|m3u8)$/i) && !key.toLowerCase().includes('img') && !key.toLowerCase().includes('poster') && !key.toLowerCase().includes('icon')) {
-                                            links.direct = val;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        search_sources.forEach(extractFromObj);
-
-                        // 4. Добавляем наши пункты в меню
+                    // ЕСЛИ НАШЛИ ССЫЛКУ — ВСЕГДА ДОБАВЛЯЕМ ПУНКТЫ В ЭТО МЕНЮ!
+                    // Убраны все проверки на слова "пометить/торрент", чтобы работать с любыми парсерами.
+                    if (links.magnet || links.direct) {
                         if (links.magnet) {
                             params.items.push({
                                 title: 'Скопировать Magnet-ссылку',
@@ -147,7 +152,6 @@
                                 copy_msg: 'Magnet-ссылка скопирована'
                             });
                         }
-
                         if (links.direct) {
                             params.items.push({
                                 title: 'Скопировать .torrent ссылку',
@@ -156,8 +160,7 @@
                             });
                         }
 
-                        // Обработка клика по пункту
-                        let original_onSelect = params.onSelect;
+                        var original_onSelect = params.onSelect;
                         params.onSelect = function (item) {
                             if (item && item.copy_url) {
                                 copyText(item.copy_url, item.copy_msg);
@@ -173,22 +176,14 @@
         }
     }
 
-    // Надежная инициализация (с защитой от особенностей загрузки форков)
+    // Запуск с автоподхватом при нестандартной загрузке форков
     if (window.appready) initPlugin();
     else {
-        let listener = window.Lampa && window.Lampa.Listener;
-        if (listener && listener.follow) {
-            listener.follow('app', function (e) {
-                if (e.type == 'ready') initPlugin();
-            });
-        } else {
-            // Если Lampa загружается нестандартно, ждем появления нужных модулей
-            let checkInterval = setInterval(function () {
-                if (window.Lampa && window.Lampa.Select && window.Lampa.Template) {
-                    clearInterval(checkInterval);
-                    initPlugin();
-                }
-            }, 500);
-        }
+        var checkInterval = setInterval(function () {
+            if (window.Lampa && window.Lampa.Select) {
+                clearInterval(checkInterval);
+                initPlugin();
+            }
+        }, 300);
     }
 })();
