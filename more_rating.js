@@ -5,101 +5,83 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина v3.0...');
+        console.log('byLampa Cards Info: Запуск плагина v4.0...');
 
-        // Уведомление об успешном подключении скрипта
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards: плагин v3.0 подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards v4.0 (Радар): подключен!');
         }
 
-        // 1. Внедрение CSS-стилей
+        // 1. Стили с максимальным приоритетом и защитой от перекрытия
         var style = document.createElement('style');
         style.innerHTML = `
-            .card__view, .card {
+            .card, .card__view, .card__img, .card__body {
                 position: relative !important;
             }
             .bl-badge {
-                position: absolute;
+                position: absolute !important;
                 padding: 0.35em 0.6em;
                 font-family: sans-serif, Arial, Helvetica;
                 font-weight: 700;
                 font-size: 0.8em;
                 line-height: 1;
-                z-index: 100;
+                z-index: 9999 !important; /* Убойный z-index, чтобы ничего не могло перекрыть плашку */
                 pointer-events: none;
                 display: flex;
                 align-items: center;
                 gap: 0.35em;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.6);
                 backdrop-filter: blur(8px);
                 -webkit-backdrop-filter: blur(8px);
                 transition: all 0.2s ease;
                 box-sizing: border-box;
             }
 
-            /* ↖️ Верхний левый угол: Тип */
+            /* ↖️ Верхний левый: Тип */
             .bl-badge--tl {
-                top: 0;
-                left: 0;
-                background: rgba(38, 166, 91, 0.85);
-                color: #ffffff;
+                top: 0 !important; left: 0 !important;
+                background: rgba(38, 166, 91, 0.85); color: #ffffff;
                 border-bottom-right-radius: 10px;
             }
 
-            /* ↗️ Верхний правый угол: Год */
+            /* ↗️ Верхний правый: Год */
             .bl-badge--tr {
-                top: 0;
-                right: 0;
-                background: rgba(20, 20, 20, 0.75);
-                color: #ffffff;
+                top: 0 !important; right: 0 !important;
+                background: rgba(20, 20, 20, 0.85); color: #ffffff;
                 border-bottom-left-radius: 10px;
             }
 
-            /* ↙️ Нижний левый угол: Качество */
+            /* ↙️ Нижний левый: Качество */
             .bl-badge--bl {
-                bottom: 0;
-                left: 0;
+                bottom: 0 !important; left: 0 !important;
                 border-top-right-radius: 10px;
-                font-weight: 900;
-                letter-spacing: 0.5px;
+                font-weight: 900; letter-spacing: 0.5px;
             }
             .bl-quality--4k { background: #e5a00d; color: #000000; }
             .bl-quality--fhd { background: #0d5ce5; color: #ffffff; }
             .bl-quality--hd { background: rgba(20, 20, 20, 0.85); color: #ffffff; }
             .bl-quality--cam { background: rgba(150, 30, 30, 0.85); color: #ffffff; }
 
-            /* ↘️ Нижний правый угол: Рейтинг */
+            /* ↘️ Нижний правый: Рейтинг */
             .bl-badge--br {
-                bottom: 0;
-                right: 0;
-                background: rgba(20, 20, 20, 0.75);
-                color: #00e5ff;
-                border-top-left-radius: 10px;
-                font-size: 0.9em;
+                bottom: 0 !important; right: 0 !important;
+                background: rgba(20, 20, 20, 0.85); color: #00e5ff;
+                border-top-left-radius: 10px; font-size: 0.9em;
             }
             .bl-badge--br .source-label {
-                font-size: 0.55em;
-                line-height: 0.9;
-                color: #ffffff;
-                opacity: 0.8;
-                display: flex;
-                flex-direction: column;
-                text-align: center;
-                font-weight: 600;
+                font-size: 0.55em; line-height: 0.9; color: #ffffff;
+                opacity: 0.8; display: flex; flex-direction: column;
+                text-align: center; font-weight: 600;
             }
 
             .bl-dot {
-                width: 6px;
-                height: 6px;
-                border-radius: 50%;
-                display: inline-block;
+                width: 6px; height: 6px; border-radius: 50%; display: inline-block;
             }
             .bl-dot--green { background: #00ff66; box-shadow: 0 0 5px #00ff66; }
             .bl-dot--red { background: #ff3333; box-shadow: 0 0 5px #ff3333; }
         `;
         document.head.appendChild(style);
 
-        // 2. Вспомогательные функции парсинга
+        // 2. Функции парсинга
         function getYear(data) {
             var date = data.release_date || data.first_air_date || data.year || '';
             return date ? String(date).slice(0, 4) : '';
@@ -113,7 +95,6 @@
             if (tmdb > 0) return { val: tmdb.toFixed(1), src: 'TM<br>DB' };
             if (imdb > 0) return { val: imdb.toFixed(1), src: 'IM<br>Db' };
             if (kp > 0) return { val: kp.toFixed(1), src: 'KP' };
-            
             return { val: 'NEW', src: '' };
         }
 
@@ -143,37 +124,42 @@
             return '';
         }
 
-        // 3. Главная функция наложения плашек (с защитой от jQuery и ошибок DOM)
-        function applyBadges(instance) {
+        // 3. Умная функция наложения плашек с авто-повтором (Retry Loop)
+        function applyBadges(instance, attempt) {
+            attempt = attempt || 0;
             try {
-                if (instance._bl_badges_added) return;
-                var card = instance.card;
-                var data = instance.data;
+                if (!instance) return;
+                var card = instance.card || instance.dom || instance.el;
+                var data = instance.data || (instance.object ? instance.object.data : null);
+                
                 if (!card || !data) return;
-
-                // Пропускаем элементы, не являющиеся видеоконтентом (актёры, меню, папки)
                 if (!data.title && !data.name && !data.release_date && !data.first_air_date) return;
 
-                // КРИТИЧЕСКИЙ ФИКС: Безопасное извлечение DOM-элемента из jQuery/Zepto обёртки
                 var domCard = card.nodeType ? card : (card[0] || card.el || null);
                 if (!domCard || !domCard.querySelector) return;
 
-                // Ищем контейнер постера (поддержка разных скинов и модификаций Lampa)
-                var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
-                if (!view) return;
+                // Ищем контейнер постера
+                var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard.querySelector('.card__body');
 
-                // Помечаем, чтобы не дублировать плашки при прокрутке
-                instance._bl_badges_added = true;
+                // Если постер ещё не успел отрисоваться в DOM, ждём 50 мс и пробуем снова! (до 10 раз)
+                if (!view && attempt < 10) {
+                    setTimeout(function () { applyBadges(instance, attempt + 1); }, 50);
+                    return;
+                }
+
+                // Если через 500 мс .card__view так и не появился — вешаем прямо на корневой элемент карточки
+                if (!view) view = domCard;
+
                 if (domCard.getAttribute('data-bl-tagged')) return;
                 domCard.setAttribute('data-bl-tagged', 'true');
 
-                // --- ↖️ Верхний левый: Тип ---
+                // --- ↖️ Верхний левый ---
                 var tlBadge = document.createElement('div');
                 tlBadge.className = 'bl-badge bl-badge--tl';
                 tlBadge.innerHTML = isSeries(data) ? ('Сериал ' + getSeriesStatusDot(data)) : 'Фильм';
                 view.appendChild(tlBadge);
 
-                // --- ↗️ Верхний правый: Год ---
+                // --- ↗️ Верхний правый ---
                 var year = getYear(data);
                 if (year && year !== '0000') {
                     var trBadge = document.createElement('div');
@@ -182,7 +168,7 @@
                     view.appendChild(trBadge);
                 }
 
-                // --- ↙️ Нижний левый: Качество ---
+                // --- ↙️ Нижний левый ---
                 var quality = getQuality(data);
                 if (quality) {
                     var blBadge = document.createElement('div');
@@ -191,44 +177,54 @@
                     view.appendChild(blBadge);
                 }
 
-                // --- ↘️ Нижний правый: Рейтинг ---
+                // --- ↘️ Нижний правый ---
                 var rating = getRating(data);
                 var brBadge = document.createElement('div');
                 brBadge.className = 'bl-badge bl-badge--br';
                 brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
                 view.appendChild(brBadge);
 
+                // 🎯 РАДАР: Сообщаем пользователю о первой успешно оформленной карте!
+                if (!window._bl_radar_shown && window.Lampa && Lampa.Noty) {
+                    window._bl_radar_shown = true;
+                    var cardTitle = data.title || data.name || 'Найдена карта';
+                    Lampa.Noty.show('🛠 Радар: "' + cardTitle + '" — плашки добавлены!');
+                }
+
             } catch (e) {
                 console.error('byLampa Cards Info: Ошибка в applyBadges', e);
-                // Если произойдёт ошибка, мы увидим её на экране телефона!
                 if (!window._bl_error_shown && window.Lampa && Lampa.Noty) {
                     window._bl_error_shown = true;
-                    Lampa.Noty.show('⚠️ Ошибка отрисовки: ' + e.message);
+                    Lampa.Noty.show('⚠️ Ошибка: ' + e.message);
                 }
             }
         }
 
-        // 4. Перехват генерации карточек с минимальной задержкой для гарантии вёрстки
-        var old_create = Lampa.Card.prototype.create;
-        Lampa.Card.prototype.create = function () {
-            var res = old_create ? old_create.apply(this, arguments) : null;
-            var self = this;
-            setTimeout(function () { applyBadges(self); }, 10);
-            return res;
-        };
+        // 4. Перехватываем все возможные методы сборки карточек в Lampa
+        var methods = ['create', 'build', 'render', 'update'];
+        methods.forEach(function (method) {
+            if (Lampa.Card && Lampa.Card.prototype[method]) {
+                var old_method = Lampa.Card.prototype[method];
+                Lampa.Card.prototype[method] = function () {
+                    var res = old_method.apply(this, arguments);
+                    var self = this;
+                    setTimeout(function () { applyBadges(self, 0); }, 10);
+                    return res;
+                };
+            }
+        });
 
-        if (Lampa.Card.prototype.build) {
-            var old_build = Lampa.Card.prototype.build;
-            Lampa.Card.prototype.build = function () {
-                var res = old_build ? old_build.apply(this, arguments) : null;
-                var self = this;
-                setTimeout(function () { applyBadges(self); }, 10);
-                return res;
-            };
+        // 5. Подключаемся к официальным событиям Lampa (глобальный перехват)
+        if (Lampa.Listener && Lampa.Listener.follow) {
+            Lampa.Listener.follow('card', function (e) {
+                if (e && (e.type === 'build' || e.type === 'create' || e.type === 'render')) {
+                    applyBadges({ card: e.card || e.dom || e.object, data: e.data }, 0);
+                }
+            });
         }
     }
 
-    // Цикл ожидания готовности ядра Lampa
+    // Цикл ожидания готовности Lampa
     function checkReady() {
         if (window.Lampa && window.Lampa.Card) {
             initPlugin();
