@@ -5,34 +5,32 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина...');
+        console.log('byLampa Cards Info: Запуск плагина v3.0...');
 
-        // 🚨 ДИОГНАСТИЧЕСКОЕ УВЕДОМЛЕНИЕ
-        // Если ты видишь это сообщение на экране смартфона — файл точно скачался и работает!
+        // Уведомление об успешном подключении скрипта
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards: плагин успешно подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards: плагин v3.0 подключен!');
         }
 
-        // 1. CSS стили (с усиленным z-index и принудительным position: relative)
+        // 1. Внедрение CSS-стилей
         var style = document.createElement('style');
         style.innerHTML = `
-            /* Гарантируем, что углы будут отчитываться от границ карточки */
             .card__view, .card {
                 position: relative !important;
             }
             .bl-badge {
                 position: absolute;
                 padding: 0.35em 0.6em;
-                font-family: sans-serif;
+                font-family: sans-serif, Arial, Helvetica;
                 font-weight: 700;
                 font-size: 0.8em;
                 line-height: 1;
-                z-index: 100; /* Подняли слой, чтобы постер точно не перекрывал плашки */
+                z-index: 100;
                 pointer-events: none;
                 display: flex;
                 align-items: center;
                 gap: 0.35em;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.5);
                 backdrop-filter: blur(8px);
                 -webkit-backdrop-filter: blur(8px);
                 transition: all 0.2s ease;
@@ -145,18 +143,29 @@
             return '';
         }
 
-        // 3. Универсальная функция добавления плашек
+        // 3. Главная функция наложения плашек (с защитой от jQuery и ошибок DOM)
         function applyBadges(instance) {
             try {
-                if (instance._bl_badges_added) return; // Защита от дублирования
+                if (instance._bl_badges_added) return;
                 var card = instance.card;
                 var data = instance.data;
                 if (!card || !data) return;
 
-                var view = card.querySelector('.card__view') || card;
+                // Пропускаем элементы, не являющиеся видеоконтентом (актёры, меню, папки)
+                if (!data.title && !data.name && !data.release_date && !data.first_air_date) return;
+
+                // КРИТИЧЕСКИЙ ФИКС: Безопасное извлечение DOM-элемента из jQuery/Zepto обёртки
+                var domCard = card.nodeType ? card : (card[0] || card.el || null);
+                if (!domCard || !domCard.querySelector) return;
+
+                // Ищем контейнер постера (поддержка разных скинов и модификаций Lampa)
+                var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
                 if (!view) return;
 
+                // Помечаем, чтобы не дублировать плашки при прокрутке
                 instance._bl_badges_added = true;
+                if (domCard.getAttribute('data-bl-tagged')) return;
+                domCard.setAttribute('data-bl-tagged', 'true');
 
                 // --- ↖️ Верхний левый: Тип ---
                 var tlBadge = document.createElement('div');
@@ -191,15 +200,20 @@
 
             } catch (e) {
                 console.error('byLampa Cards Info: Ошибка в applyBadges', e);
+                // Если произойдёт ошибка, мы увидим её на экране телефона!
+                if (!window._bl_error_shown && window.Lampa && Lampa.Noty) {
+                    window._bl_error_shown = true;
+                    Lampa.Noty.show('⚠️ Ошибка отрисовки: ' + e.message);
+                }
             }
         }
 
-        // 4. Перехватываем и create, и build с гарантией отрисовки в конце стека
+        // 4. Перехват генерации карточек с минимальной задержкой для гарантии вёрстки
         var old_create = Lampa.Card.prototype.create;
         Lampa.Card.prototype.create = function () {
             var res = old_create ? old_create.apply(this, arguments) : null;
             var self = this;
-            setTimeout(function () { applyBadges(self); }, 0);
+            setTimeout(function () { applyBadges(self); }, 10);
             return res;
         };
 
@@ -208,13 +222,13 @@
             Lampa.Card.prototype.build = function () {
                 var res = old_build ? old_build.apply(this, arguments) : null;
                 var self = this;
-                setTimeout(function () { applyBadges(self); }, 0);
+                setTimeout(function () { applyBadges(self); }, 10);
                 return res;
             };
         }
     }
 
-    // Надежный цикл ожидания загрузки ядра
+    // Цикл ожидания готовности ядра Lampa
     function checkReady() {
         if (window.Lampa && window.Lampa.Card) {
             initPlugin();
