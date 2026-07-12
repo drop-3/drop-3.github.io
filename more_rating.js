@@ -5,18 +5,16 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина v4.0...');
+        console.log('byLampa Cards Info: Запуск плагина v5.0 (Архитектор)...');
 
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards v4.0 (Радар): подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards v5.0: Архитектор подключен!');
         }
 
-        // 1. Стили с максимальным приоритетом и защитой от перекрытия
+        // 1. Чистые стили ТОЛЬКО для плашек (не трогаем вёрстку картинок Lampa!)
         var style = document.createElement('style');
         style.innerHTML = `
-            .card, .card__view, .card__img, .card__body {
-                position: relative !important;
-            }
+            /* Плашки позиционируются относительно .card__view, который в Lampa уже имеет нужные границы */
             .bl-badge {
                 position: absolute !important;
                 padding: 0.35em 0.6em;
@@ -24,7 +22,7 @@
                 font-weight: 700;
                 font-size: 0.8em;
                 line-height: 1;
-                z-index: 9999 !important; /* Убойный z-index, чтобы ничего не могло перекрыть плашку */
+                z-index: 100 !important;
                 pointer-events: none;
                 display: flex;
                 align-items: center;
@@ -36,21 +34,21 @@
                 box-sizing: border-box;
             }
 
-            /* ↖️ Верхний левый: Тип */
+            /* ↖️ Верхний левый угол: Тип */
             .bl-badge--tl {
                 top: 0 !important; left: 0 !important;
                 background: rgba(38, 166, 91, 0.85); color: #ffffff;
                 border-bottom-right-radius: 10px;
             }
 
-            /* ↗️ Верхний правый: Год */
+            /* ↗️ Верхний правый угол: Год */
             .bl-badge--tr {
                 top: 0 !important; right: 0 !important;
                 background: rgba(20, 20, 20, 0.85); color: #ffffff;
                 border-bottom-left-radius: 10px;
             }
 
-            /* ↙️ Нижний левый: Качество */
+            /* ↙️ Нижний левый угол: Качество */
             .bl-badge--bl {
                 bottom: 0 !important; left: 0 !important;
                 border-top-right-radius: 10px;
@@ -61,7 +59,7 @@
             .bl-quality--hd { background: rgba(20, 20, 20, 0.85); color: #ffffff; }
             .bl-quality--cam { background: rgba(150, 30, 30, 0.85); color: #ffffff; }
 
-            /* ↘️ Нижний правый: Рейтинг */
+            /* ↘️ Нижний правый угол: Рейтинг */
             .bl-badge--br {
                 bottom: 0 !important; right: 0 !important;
                 background: rgba(20, 20, 20, 0.85); color: #00e5ff;
@@ -81,7 +79,7 @@
         `;
         document.head.appendChild(style);
 
-        // 2. Функции парсинга
+        // 2. Вспомогательные функции парсинга
         function getYear(data) {
             var date = data.release_date || data.first_air_date || data.year || '';
             return date ? String(date).slice(0, 4) : '';
@@ -124,32 +122,28 @@
             return '';
         }
 
-        // 3. Умная функция наложения плашек с авто-повтором (Retry Loop)
-        function applyBadges(instance, attempt) {
+        // 3. Функция наложения плашек
+        function applyBadges(cardObj, data, attempt) {
             attempt = attempt || 0;
             try {
-                if (!instance) return;
-                var card = instance.card || instance.dom || instance.el;
-                var data = instance.data || (instance.object ? instance.object.data : null);
-                
-                if (!card || !data) return;
+                if (!cardObj || !data) return;
                 if (!data.title && !data.name && !data.release_date && !data.first_air_date) return;
 
-                var domCard = card.nodeType ? card : (card[0] || card.el || null);
+                var domCard = cardObj.nodeType ? cardObj : (cardObj[0] || cardObj.el || cardObj.card || null);
                 if (!domCard || !domCard.querySelector) return;
 
-                // Ищем контейнер постера
-                var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard.querySelector('.card__body');
+                // Ищем родной контейнер картинки Lampa
+                var view = domCard.querySelector('.card__view');
 
-                // Если постер ещё не успел отрисоваться в DOM, ждём 50 мс и пробуем снова! (до 10 раз)
-                if (!view && attempt < 10) {
-                    setTimeout(function () { applyBadges(instance, attempt + 1); }, 50);
+                // Если .card__view ещё не собрался в DOM, ждём 30 мс и пробуем снова (до 15 раз)
+                if (!view && attempt < 15) {
+                    setTimeout(function () { applyBadges(cardObj, data, attempt + 1); }, 30);
                     return;
                 }
 
-                // Если через 500 мс .card__view так и не появился — вешаем прямо на корневой элемент карточки
-                if (!view) view = domCard;
+                if (!view) view = domCard; // Запасной вариант
 
+                // Защита от повторной отрисовки на одной карте
                 if (domCard.getAttribute('data-bl-tagged')) return;
                 domCard.setAttribute('data-bl-tagged', 'true');
 
@@ -184,11 +178,11 @@
                 brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
                 view.appendChild(brBadge);
 
-                // 🎯 РАДАР: Сообщаем пользователю о первой успешно оформленной карте!
+                // 🎯 РАДАР: Сигнализируем об успехе!
                 if (!window._bl_radar_shown && window.Lampa && Lampa.Noty) {
                     window._bl_radar_shown = true;
-                    var cardTitle = data.title || data.name || 'Найдена карта';
-                    Lampa.Noty.show('🛠 Радар: "' + cardTitle + '" — плашки добавлены!');
+                    var cardTitle = data.title || data.name || 'Фильм';
+                    Lampa.Noty.show('🛠 Радар: "' + cardTitle + '" — плашки установлены!');
                 }
 
             } catch (e) {
@@ -200,31 +194,45 @@
             }
         }
 
-        // 4. Перехватываем все возможные методы сборки карточек в Lampa
-        var methods = ['create', 'build', 'render', 'update'];
-        methods.forEach(function (method) {
-            if (Lampa.Card && Lampa.Card.prototype[method]) {
-                var old_method = Lampa.Card.prototype[method];
-                Lampa.Card.prototype[method] = function () {
-                    var res = old_method.apply(this, arguments);
-                    var self = this;
-                    setTimeout(function () { applyBadges(self, 0); }, 10);
+        // 4. ГЛАВНЫЙ ПЕРЕХВАТ: Оборачиваем конструктор Lampa.Card напрямую!
+        var old_Card = Lampa.Card;
+        Lampa.Card = function (data, card_type) {
+            // Вызываем оригинальный конструктор Lampa и получаем готовый объект карточки
+            var instance = new old_Card(data, card_type);
+
+            // Перехватываем метод create у конкретного созданного экземпляра
+            if (instance.create) {
+                var old_create = instance.create;
+                instance.create = function () {
+                    var res = old_create.apply(instance, arguments);
+                    // Запускаем наложение плашек сразу после того, как Lampa собрала карту
+                    setTimeout(function () { applyBadges(instance.card || res, data, 0); }, 10);
                     return res;
                 };
             }
-        });
 
-        // 5. Подключаемся к официальным событиям Lampa (глобальный перехват)
-        if (Lampa.Listener && Lampa.Listener.follow) {
-            Lampa.Listener.follow('card', function (e) {
-                if (e && (e.type === 'build' || e.type === 'create' || e.type === 'render')) {
-                    applyBadges({ card: e.card || e.dom || e.object, data: e.data }, 0);
-                }
-            });
+            // Перехватываем метод render на случай других сценариев отрисовки
+            if (instance.render) {
+                var old_render = instance.render;
+                instance.render = function () {
+                    var res = old_render.apply(instance, arguments);
+                    setTimeout(function () { applyBadges(instance.card || res, data, 0); }, 10);
+                    return res;
+                };
+            }
+
+            return instance;
+        };
+
+        // Сохраняем все оригинальные свойства конструктора (если они были)
+        for (var prop in old_Card) {
+            if (old_Card.hasOwnProperty(prop)) {
+                Lampa.Card[prop] = old_Card[prop];
+            }
         }
     }
 
-    // Цикл ожидания готовности Lampa
+    // Надёжный цикл ожидания загрузки ядра Lampa
     function checkReady() {
         if (window.Lampa && window.Lampa.Card) {
             initPlugin();
