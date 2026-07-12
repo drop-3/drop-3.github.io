@@ -142,12 +142,7 @@
     };
 
     function notifyDone() {
-        var text = Lampa.Lang.translate('bat_check_done');
-        try { 
-            if (Lampa.Noty && typeof Lampa.Noty.show === 'function') { Lampa.Noty.show(text); return; }
-            if (Lampa.Toast && typeof Lampa.Toast.show === 'function') { Lampa.Toast.show(text); return; } 
-        } catch (e) {}
-        alert(text);
+        
     }
 
     function getSelectedBase() { 
