@@ -5,13 +5,13 @@
         if (window.bylampa_cards_info_loaded) return;
         window.bylampa_cards_info_loaded = true;
 
-        console.log('byLampa Cards Info: Запуск плагина v6.0...');
+        console.log('byLampa Cards Info: Запуск плагина v7.0 (DOM Снайпер)...');
 
         if (window.Lampa && Lampa.Noty) {
-            Lampa.Noty.show('🎨 byLampa Cards v6.0: Тотальный перехват подключен!');
+            Lampa.Noty.show('🎨 byLampa Cards v7.0: DOM Снайпер подключен!');
         }
 
-        // 1. Чистые стили ТОЛЬКО для плашек (не ломаем пропорции постеров Lampa!)
+        // 1. Внедряем чистые стили ТОЛЬКО для наших плашек
         var style = document.createElement('style');
         style.innerHTML = `
             .bl-badge {
@@ -78,7 +78,7 @@
         `;
         document.head.appendChild(style);
 
-        // 2. Функции парсинга
+        // 2. Вспомогательные функции парсинга
         function getYear(data) {
             var date = data.release_date || data.first_air_date || data.year || '';
             return date ? String(date).slice(0, 4) : '';
@@ -121,123 +121,148 @@
             return '';
         }
 
-        // 3. Универсальный накладчик плашек
-        function applyBadges(cardObj, data, templateName) {
+        // 3. УНИВЕРСАЛЬНАЯ ОТМЫЧКА: Извлекаем данные фильма из DOM-узла карточки
+        function getCardData(domCard) {
+            if (!domCard) return null;
+            var nodes = [domCard, domCard.querySelector('.card__view'), domCard.parentNode, domCard.firstElementChild];
+            for (var i = 0; i < nodes.length; i++) {
+                var n = nodes[i];
+                if (!n) continue;
+                if (n._data && (n._data.title || n._data.name)) return n._data;
+                if (n.data && (n.data.title || n.data.name)) return n.data;
+                if (n.item && (n.item.title || n.item.name)) return n.item;
+                if (n.card_data && (n.card_data.title || n.card_data.name)) return n.card_data;
+                if (n['data-item'] && (n['data-item'].title || n['data-item'].name)) return n['data-item'];
+                if (n['data-card'] && (n['data-card'].title || n['data-card'].name)) return n['data-card'];
+                if (n.__data && (n.__data.title || n.__data.name)) return n.__data;
+                if (n.object && (n.object.title || n.object.name)) return n.object;
+            }
+            // Проверяем кэш jQuery
+            if (window.$ && typeof window.$ === 'function') {
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    if (!n) continue;
+                    try {
+                        var jq = $(n);
+                        var keys = ['item', 'card', 'data', 'object', 'item-data', 'card-data'];
+                        for (var k = 0; k < keys.length; k++) {
+                            var d = jq.data(keys[k]);
+                            if (d && typeof d === 'object' && (d.title || d.name)) return d;
+                        }
+                    } catch(e) {}
+                }
+            }
+            return null;
+        }
+
+        // 4. Главная функция сканирования экрана
+        function scanAndApplyBadges() {
             try {
-                if (!cardObj || !data) return;
-                // Проверяем, что перед нами именно фильм или сериал
-                if (!data.title && !data.name && !data.release_date && !data.first_air_date) return;
+                // Ищем все карточки на экране (точно так же, как рабочий плагин ищет рейтинг)
+                var cards = document.querySelectorAll('.card');
+                if (!cards || cards.length === 0) return;
 
-                var domCard = cardObj.nodeType ? cardObj : (cardObj[0] || cardObj.el || cardObj.card || null);
-                if (!domCard) return;
+                var taggedCount = 0;
+                var lastTitle = '';
 
-                // Защита от дублирования
-                if (domCard.getAttribute('data-bl-tagged')) return;
+                for (var i = 0; i < cards.length; i++) {
+                    var domCard = cards[i];
+                    
+                    // Если уже оформили эту карту — пропускаем
+                    if (domCard.getAttribute('data-bl-tagged')) continue;
 
-                // Ищем контейнер постера (поддержка любых версий и скинов)
-                var view = null;
-                if (domCard.classList && domCard.classList.contains('card__view')) {
-                    view = domCard;
-                } else if (domCard.querySelector) {
-                    view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
+                    var data = getCardData(domCard);
+                    if (!data) continue; // Если это карточка актёра или меню без фильма
+
+                    // Ищем контейнер постера
+                    var view = domCard.querySelector('.card__view') || domCard.querySelector('.card__img') || domCard;
+                    if (view.tagName && view.tagName.toLowerCase() === 'img') view = view.parentNode || domCard;
+
+                    domCard.setAttribute('data-bl-tagged', 'true');
+                    taggedCount++;
+                    lastTitle = data.title || data.name || 'Фильм';
+
+                    // Если на карточке уже есть родная цифра рейтинга — скрываем её, чтобы не мешала нашей
+                    var nativeVote = view.querySelector('.card__vote');
+                    if (nativeVote) nativeVote.style.display = 'none';
+
+                    // --- ↖️ Верхний левый ---
+                    var tlBadge = document.createElement('div');
+                    tlBadge.className = 'bl-badge bl-badge--tl';
+                    tlBadge.innerHTML = isSeries(data) ? ('Сериал ' + getSeriesStatusDot(data)) : 'Фильм';
+                    view.appendChild(tlBadge);
+
+                    // --- ↗️ Верхний правый ---
+                    var year = getYear(data);
+                    if (year && year !== '0000') {
+                        var trBadge = document.createElement('div');
+                        trBadge.className = 'bl-badge bl-badge--tr';
+                        trBadge.innerText = year;
+                        view.appendChild(trBadge);
+                    }
+
+                    // --- ↙️ Нижний левый ---
+                    var quality = getQuality(data);
+                    if (quality) {
+                        var blBadge = document.createElement('div');
+                        blBadge.className = 'bl-badge bl-badge--bl ' + quality.className;
+                        blBadge.innerText = quality.text;
+                        view.appendChild(blBadge);
+                    }
+
+                    // --- ↘️ Нижний правый ---
+                    var rating = getRating(data);
+                    var brBadge = document.createElement('div');
+                    brBadge.className = 'bl-badge bl-badge--br';
+                    brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
+                    view.appendChild(brBadge);
                 }
-                if (!view) return;
 
-                // Если .card__img оказался тегом <img>, прикрепляем плашки к его родителю (div), чтобы не ломать HTML
-                if (view.tagName && view.tagName.toLowerCase() === 'img') {
-                    view = view.parentNode || domCard;
-                }
-
-                domCard.setAttribute('data-bl-tagged', 'true');
-
-                // --- ↖️ Верхний левый ---
-                var tlBadge = document.createElement('div');
-                tlBadge.className = 'bl-badge bl-badge--tl';
-                tlBadge.innerHTML = isSeries(data) ? ('Сериал ' + getSeriesStatusDot(data)) : 'Фильм';
-                view.appendChild(tlBadge);
-
-                // --- ↗️ Верхний правый ---
-                var year = getYear(data);
-                if (year && year !== '0000') {
-                    var trBadge = document.createElement('div');
-                    trBadge.className = 'bl-badge bl-badge--tr';
-                    trBadge.innerText = year;
-                    view.appendChild(trBadge);
-                }
-
-                // --- ↙️ Нижний левый ---
-                var quality = getQuality(data);
-                if (quality) {
-                    var blBadge = document.createElement('div');
-                    blBadge.className = 'bl-badge bl-badge--bl ' + quality.className;
-                    blBadge.innerText = quality.text;
-                    view.appendChild(blBadge);
-                }
-
-                // --- ↘️ Нижний правый ---
-                var rating = getRating(data);
-                var brBadge = document.createElement('div');
-                brBadge.className = 'bl-badge bl-badge--br';
-                brBadge.innerHTML = rating.val === 'NEW' ? '<span>NEW</span>' : ('<span>' + rating.val + '</span><span class="source-label">' + rating.src + '</span>');
-                view.appendChild(brBadge);
-
-                // 🎯 РАДАР 6.0: Сообщаем об успехе и раскрываем имя шаблона byLampa!
-                if (!window._bl_radar_shown && window.Lampa && Lampa.Noty) {
-                    window._bl_radar_shown = true;
-                    var cardTitle = data.title || data.name || 'Фильм';
-                    Lampa.Noty.show('🛠 Радар: шаблон "' + (templateName || 'card') + '" -> "' + cardTitle + '"');
+                // 🎯 РАДАР 7.0: Отчитываемся об успехе на экране!
+                if (taggedCount > 0 && !window._bl_radar_v7_shown && window.Lampa && Lampa.Noty) {
+                    window._bl_radar_v7_shown = true;
+                    Lampa.Noty.show('🛠 Радар v7.0: Найдено карт: ' + cards.length + ' ("' + lastTitle + '")');
                 }
 
             } catch (e) {
-                console.error('byLampa Cards Info: Ошибка в applyBadges', e);
+                console.error('byLampa Cards Info: Ошибка в scanAndApplyBadges', e);
             }
         }
 
-        // 4. ГЛАВНЫЙ СЕКРЕТНЫЙ ПЕРЕХВАТ: Внедряемся в ядро генератора HTML (Template.get)
-        if (Lampa.Template && Lampa.Template.get) {
-            var old_template_get = Lampa.Template.get;
-            Lampa.Template.get = function (name, data) {
-                // Вызываем оригинальный генератор и получаем готовый HTML-элемент
-                var res = old_template_get.apply(this, arguments);
-                
-                // Если в генератор передали данные фильма/сериала — это 100% карточка, как бы она ни называлась!
-                if (data && typeof data === 'object' && (data.title || data.name) && (data.release_date || data.first_air_date || data.vote_average || data.id)) {
-                    // Накладываем плашки сразу и через 20 миллисекунд (для гарантии, если DOM достраивается асинхронно)
-                    applyBadges(res, data, name);
-                    setTimeout(function () { applyBadges(res, data, name); }, 20);
-                }
-                return res;
-            };
-        }
+        // 5. ГЛАВНЫЙ СЕКРЕТ: Вешаем MutationObserver на body, как в твоем рабочем плагине!
+        var timer;
+        var observer = new MutationObserver(function (mutations) {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                scanAndApplyBadges();
+            }, 30); // Ждем 30 мс после любого изменения экрана и сканируем карточки
+        });
 
-        // 5. Резервный перехват стандартного Lampa.Card (на всякий случай)
-        if (Lampa.Card) {
-            var old_Card = Lampa.Card;
-            Lampa.Card = function (data, card_type) {
-                var instance = new old_Card(data, card_type);
-                if (instance.create) {
-                    var old_create = instance.create;
-                    instance.create = function () {
-                        var res = old_create.apply(instance, arguments);
-                        setTimeout(function () { applyBadges(instance.card || res, data, 'Lampa.Card'); }, 10);
-                        return res;
-                    };
-                }
-                return instance;
-            };
-            for (var prop in old_Card) {
-                if (old_Card.hasOwnProperty(prop)) Lampa.Card[prop] = old_Card[prop];
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Запускаем первое сканирование сразу
+        setTimeout(scanAndApplyBadges, 500);
+        setTimeout(scanAndApplyBadges, 1500);
+    }
+
+    // Запуск плагина по готовности приложения
+    if (window.appready || (window.Lampa && window.Lampa.Card)) {
+        initPlugin();
+    } else if (window.Lampa && Lampa.Listener) {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type == 'ready' || e.type == 'appready') {
+                initPlugin();
             }
-        }
+        });
+    } else {
+        var checkTimer = setInterval(function () {
+            if (window.appready || (window.Lampa && window.Lampa.Card)) {
+                clearInterval(checkTimer);
+                initPlugin();
+            }
+        }, 100);
     }
-
-    // Надёжный цикл ожидания загрузки ядра Lampa
-    function checkReady() {
-        if (window.Lampa && window.Lampa.Template) {
-            initPlugin();
-        } else {
-            setTimeout(checkReady, 100);
-        }
-    }
-    checkReady();
 })();
