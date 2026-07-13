@@ -1,8 +1,8 @@
-// Версия 1.1 - Исправлен поиск таймкода и добавлена обработка кнопки "Обновить"
+// Версия 1.2 - Глубокий поиск таймкода, поддержка торрентов и исправление кнопки "Обновить"
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.1';
+    var PLUGIN_VERSION = '1.2';
 
     // Защита от двойной загрузки
     if (window.movies_tracker_plugin_loaded === PLUGIN_VERSION) return;
@@ -20,33 +20,46 @@
             var items = [];
             var _this = this;
 
-            // Выносим сборку страницы в отдельный метод, чтобы его могла вызывать кнопка "Обновить"
             this.build = function() {
-                html.empty(); // Очищаем контейнер
-                
-                if (scroll) {
-                    scroll.destroy();
-                    scroll = new Lampa.Scroll({ mask: true, over: true });
-                }
-                
-                items.forEach(function(c) { c.destroy(); });
-                items = [];
-
                 var history = Lampa.Storage.get('history', []);
+                var timeline = Lampa.Storage.get('timeline', {});
+                var file_view = Lampa.Storage.get('file_view', {}); // База просмотров для торрентов и некоторых балансеров
 
                 var filtered = history.filter(function(item) {
-                    // Отсекаем сериалы
-                    if (item.type === 'tv' || item.name || item.number_of_seasons) return false;
+                    // Надежный фильтр от сериалов (учитываем, что у фильмов не бывает сезонов)
+                    var is_tv = item.type === 'tv' || item.number_of_seasons !== undefined || (item.name && !item.title && item.type !== 'movie');
+                    if (is_tv) return false;
 
-                    // Надежный поиск прогресса через внутренний API Lampa
-                    var hash = item.hash || Lampa.Utils.hash(item.type ? [item.type, item.id].join('_') : item.id);
-                    var view = Lampa.Timeline.view(hash) || Lampa.Timeline.view(item.id) || {};
+                    // Глубокий поиск прогресса
+                    var progress = 0;
+                    var idStr = String(item.id);
+
+                    // Шаг 1: Ищем в стандартном timeline
+                    for (var k in timeline) {
+                        if (String(k).indexOf(idStr) !== -1 && timeline[k].percent) {
+                            progress = timeline[k].percent;
+                            if (progress > 0) break;
+                        }
+                    }
+
+                    // Шаг 2: Если не нашли, ищем в file_view (торренты)
+                    if (!progress) {
+                        for (var f in file_view) {
+                            if (String(f).indexOf(idStr) !== -1 && file_view[f].percent) {
+                                progress = file_view[f].percent;
+                                if (progress > 0) break;
+                            }
+                        }
+                    }
+
+                    // Шаг 3: Страховочный вариант от самой карточки
+                    if (!progress) progress = item.percent || 0;
                     
-                    var progress = parseFloat(view.percent || item.percent || 0);
+                    progress = parseFloat(progress) || 0;
 
-                    // Сортировка по порогу
+                    // Распределение по папкам (теперь включает и 0%, чтобы фильмы не пропадали вникуда)
                     if (params.action === 'watching_now') {
-                        return progress > 0 && progress < THRESHOLD; 
+                        return progress < THRESHOLD; 
                     } else if (params.action === 'watched') {
                         return progress >= THRESHOLD;
                     }
@@ -83,11 +96,6 @@
                     scroll.append(body);
                     html.append(scroll.render());
                 }
-
-                // Возвращаем фокус на карточки после обновления
-                if (Lampa.Controller.enabled().name === 'content') {
-                    Lampa.Controller.toggle('content');
-                }
             };
 
             this.create = function() {
@@ -97,12 +105,18 @@
                 this.activity.render().find('.activity__body').append(html);
             };
 
-            // Системный метод: срабатывает при нажатии на кнопку "Обновить" в верхней панели
+            // Полностью рабочая кнопка "Обновить" (перезапускает текущую активность как системная функция Lampa)
             this.update = function() {
-                this.build();
+                Lampa.Noty.show('Обновление списка...');
+                Lampa.Activity.replace({
+                    url: params.url,
+                    title: params.title,
+                    component: params.component,
+                    action: params.action
+                });
             };
 
-            // Навигация с пульта
+            // Навигация пульта
             this.start = function() {
                 Lampa.Controller.add('content', {
                     toggle: function() {
@@ -119,7 +133,7 @@
                     },
                     up: function() {
                         if (window.Navigator.canmove('up')) window.Navigator.move('up');
-                        else Lampa.Controller.toggle('head'); // Выход на верхнюю панель к кнопке "Обновить"
+                        else Lampa.Controller.toggle('head'); // Фокус на верхнюю панель с кнопкой Обновить
                     },
                     down: function() {
                         if (window.Navigator.canmove('down')) window.Navigator.move('down');
@@ -142,7 +156,7 @@
         });
     }
 
-    // 2. Добавляем кнопки в меню
+    // 2. Добавляем кнопки
     function addMenuItems() {
         if ($('.menu__item[data-action="watching_now"]').length) return; 
 
@@ -180,7 +194,7 @@
             }
         });
 
-        // Уведомление об успешной загрузке актуальной версии
+        // Уведомление об успешной загрузке
         setTimeout(function() {
             Lampa.Noty.show('Плагин Movies Tracker v' + PLUGIN_VERSION + ' загружен');
         }, 1000);
