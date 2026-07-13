@@ -1,8 +1,8 @@
-// Версия 1.3 - Умный рендер, диагностика на экране и мягкий фильтр
+// Версия 1.4 - Исправлен баг с пустым экраном, работает дебаг
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.3';
+    var PLUGIN_VERSION = '1.4';
 
     if (window.movies_tracker_plugin_loaded === PLUGIN_VERSION) return;
     window.movies_tracker_plugin_loaded = PLUGIN_VERSION;
@@ -26,7 +26,6 @@
                 var history = Lampa.Storage.get('history', []);
                 
                 var filtered = history.filter(function(item) {
-                    // ОЧЕНЬ мягкий фильтр: отсекаем только если явно написано 'tv'
                     if (item.type === 'tv') return false;
 
                     var hash = item.hash || Lampa.Utils.hash(item.type ? [item.type, item.id].join('_') : item.id);
@@ -41,10 +40,9 @@
                     return false;
                 });
 
-                // Если пусто - ВЫВОДИМ ДИАГНОСТИКУ НА ЭКРАН
                 if (filtered.length === 0) {
                     var dbg = "Здесь пока пусто.<br><br><span style='color: #ffc107; font-size: 0.8em;'>[Диагностика для разработчика]</span><br>";
-                    dbg += "<span style='font-size: 0.8em;'>Всего записей в системной истории: " + history.length + "</span><br>";
+                    dbg += "<span style='font-size: 0.8em;'>Всего записей в истории: " + history.length + "</span><br>";
                     
                     if (history.length > 0) {
                         var first = history[0];
@@ -85,10 +83,13 @@
             };
 
             this.create = function() {
+                this.activity.loader(true);
                 this.build();
+                this.activity.loader(false);
+                // ВОТ ЭТА СТРОКА БЫЛА ПОТЕРЯНА В 1.3:
+                this.activity.render().find('.activity__body').append(html); 
             };
 
-            // Встроенный метод Lampa для работы верхней кнопки
             this.update = function() {
                 _this.build();
                 Lampa.Controller.toggle('content');
@@ -114,7 +115,7 @@
                     },
                     up: function() {
                         if (window.Navigator.canmove('up')) window.Navigator.move('up');
-                        else Lampa.Controller.toggle('head'); // Выход к кнопке обновить
+                        else Lampa.Controller.toggle('head');
                     },
                     down: function() {
                         if (window.Navigator.canmove('down')) window.Navigator.move('down');
@@ -145,11 +146,12 @@
         var htmlWatching = $('<li class="menu__item selector" data-action="watching_now"><div class="menu__ico">'+svgPlay+'</div><div class="menu__text">Смотрю сейчас</div></li>');
         var htmlWatched = $('<li class="menu__item selector" data-action="watched"><div class="menu__ico">'+svgCheck+'</div><div class="menu__text">Просмотрено</div></li>');
 
-        htmlWatching.on('hover:enter', function() {
+        // Добавлено событие 'click' для тестов с мышки
+        htmlWatching.on('hover:enter click', function() {
             Lampa.Activity.push({ url: '', title: 'Смотрю сейчас', component: 'custom_movie_filter', action: 'watching_now' });
         });
 
-        htmlWatched.on('hover:enter', function() {
+        htmlWatched.on('hover:enter click', function() {
             Lampa.Activity.push({ url: '', title: 'Просмотрено', component: 'custom_movie_filter', action: 'watched' });
         });
 
