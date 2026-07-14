@@ -1,185 +1,132 @@
-// Версия 1.4 - Исправлен баг с пустым экраном, работает дебаг
+// Версия: 1.0
+// Описание: Плагин для сохранения и автозагрузки состояния фильтра.
+
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.4';
-
-    if (window.movies_tracker_plugin_loaded === PLUGIN_VERSION) return;
-    window.movies_tracker_plugin_loaded = PLUGIN_VERSION;
-
-    var THRESHOLD = 80; 
-
-    function createCustomFolderComponent() {
-        Lampa.Component.add('custom_movie_filter', function(params) {
-            var component = new Lampa.Interaction(this);
-            var html = $('<div></div>');
-            var scroll = new Lampa.Scroll({ mask: true, over: true });
-            var items = [];
-            var _this = this;
-
-            this.build = function() {
-                html.empty();
-                if (scroll) scroll.destroy();
-                scroll = new Lampa.Scroll({ mask: true, over: true });
-                items = [];
-
-                var history = Lampa.Storage.get('history', []);
-                
-                var filtered = history.filter(function(item) {
-                    if (item.type === 'tv') return false;
-
-                    var hash = item.hash || Lampa.Utils.hash(item.type ? [item.type, item.id].join('_') : item.id);
-                    var view = Lampa.Timeline.view(hash) || {};
-                    var progress = parseFloat(view.percent || item.percent || 0);
-
-                    if (params.action === 'watching_now') {
-                        return progress < THRESHOLD; 
-                    } else if (params.action === 'watched') {
-                        return progress >= THRESHOLD;
-                    }
-                    return false;
-                });
-
-                if (filtered.length === 0) {
-                    var dbg = "Здесь пока пусто.<br><br><span style='color: #ffc107; font-size: 0.8em;'>[Диагностика для разработчика]</span><br>";
-                    dbg += "<span style='font-size: 0.8em;'>Всего записей в истории: " + history.length + "</span><br>";
-                    
-                    if (history.length > 0) {
-                        var first = history[0];
-                        var f_hash = first.hash || Lampa.Utils.hash(first.type ? [first.type, first.id].join('_') : first.id);
-                        var f_view = Lampa.Timeline.view(f_hash) || {};
-                        var p = parseFloat(f_view.percent || first.percent || 0);
-                        dbg += "<span style='font-size: 0.8em; color: #aaa;'>Последний элемент: " + (first.title || first.name || 'Без названия') + " (Тип: " + first.type + ", Прогресс плеера: " + p + "%)</span>";
-                    }
-                    
-                    html.append('<div class="empty__body" style="padding: 3em; text-align: center; color: rgba(255,255,255,0.7); font-size: 1.2em;">' + dbg + '</div>');
-                } else {
-                    var body = $('<div class="category-full"></div>');
-                    filtered.forEach(function(item) {
-                        var card = new Lampa.Card(item, { card_category: true });
-                        card.create();
-                        
-                        card.onEnter = function() {
-                            Lampa.Activity.push({
-                                url: '',
-                                title: item.title || item.name,
-                                component: 'full',
-                                id: item.id,
-                                method: item.type || 'movie',
-                                card: item
-                            });
-                        };
-                        
-                        card.onHover = function(target) {
-                            scroll.update(card.render());
-                        };
-                        
-                        body.append(card.render());
-                        items.push(card);
-                    });
-                    scroll.append(body);
-                    html.append(scroll.render());
-                }
-            };
-
-            this.create = function() {
-                this.activity.loader(true);
-                this.build();
-                this.activity.loader(false);
-                // ВОТ ЭТА СТРОКА БЫЛА ПОТЕРЯНА В 1.3:
-                this.activity.render().find('.activity__body').append(html); 
-            };
-
-            this.update = function() {
-                _this.build();
-                Lampa.Controller.toggle('content');
-            };
-
-            this.render = function() {
-                return html;
-            };
-
-            this.start = function() {
-                Lampa.Controller.add('content', {
-                    toggle: function() {
-                        Lampa.Controller.collectionSet(html);
-                        Lampa.Controller.collectionFocus(items.length ? items[0].render() : false, html);
-                    },
-                    left: function() {
-                        if (Lampa.Platform.is('web') && !window.Navigator.canmove('left')) Lampa.Controller.toggle('menu');
-                        else if (window.Navigator.canmove('left')) window.Navigator.move('left');
-                        else Lampa.Controller.toggle('menu');
-                    },
-                    right: function() {
-                        if (window.Navigator.canmove('right')) window.Navigator.move('right');
-                    },
-                    up: function() {
-                        if (window.Navigator.canmove('up')) window.Navigator.move('up');
-                        else Lampa.Controller.toggle('head');
-                    },
-                    down: function() {
-                        if (window.Navigator.canmove('down')) window.Navigator.move('down');
-                    },
-                    back: function() {
-                        Lampa.Activity.backward();
-                    }
-                });
-                Lampa.Controller.toggle('content');
-            };
-
-            this.pause = function() {};
-            this.stop = function() {};
-            this.destroy = function() {
-                if (scroll) scroll.destroy();
-                html.remove();
-                items.forEach(function(c) { c.destroy(); });
-            };
-        });
-    }
-
-    function addMenuItems() {
-        if ($('.menu__item[data-action="watching_now"]').length) return; 
-
-        var svgPlay = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
-        var svgCheck = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" fill="currentColor"/></svg>';
-
-        var htmlWatching = $('<li class="menu__item selector" data-action="watching_now"><div class="menu__ico">'+svgPlay+'</div><div class="menu__text">Смотрю сейчас</div></li>');
-        var htmlWatched = $('<li class="menu__item selector" data-action="watched"><div class="menu__ico">'+svgCheck+'</div><div class="menu__text">Просмотрено</div></li>');
-
-        // Добавлено событие 'click' для тестов с мышки
-        htmlWatching.on('hover:enter click', function() {
-            Lampa.Activity.push({ url: '', title: 'Смотрю сейчас', component: 'custom_movie_filter', action: 'watching_now' });
-        });
-
-        htmlWatched.on('hover:enter click', function() {
-            Lampa.Activity.push({ url: '', title: 'Просмотрено', component: 'custom_movie_filter', action: 'watched' });
-        });
-
-        var historyItem = $('.menu__item[data-action="history"]');
-        if (historyItem.length) {
-            historyItem.after(htmlWatched);
-            historyItem.after(htmlWatching);
-        } else {
-            $('.menu .menu__list').eq(0).append(htmlWatching).append(htmlWatched);
-        }
-    }
+    var plugin_version = '1.0';
+    var plugin_name = 'SaveFilter';
 
     function init() {
-        createCustomFolderComponent();
-        addMenuItems();
+        // Уведомление при успешной загрузке (как договаривались)
+        Lampa.Noty.show('Плагин "Сохранение фильтра" версия ' + plugin_version + ' загружен');
 
-        Lampa.Listener.follow('menu', function (e) {
-            if (e.type === 'ready' || e.type === 'build') {
-                addMenuItems();
+        // Добавляем CSS стили для наших кнопок
+        var css = `
+            .filter-custom-buttons {
+                position: absolute;
+                right: 20px;
+                top: 50%;
+                transform: translateY(-50%);
+                display: flex;
+                gap: 15px;
+                z-index: 100;
             }
+            .filter-btn-action {
+                background: rgba(255, 255, 255, 0.1);
+                padding: 6px 12px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.9em;
+                transition: background 0.2s, color 0.2s;
+                color: #fff;
+            }
+            .filter-btn-action:hover {
+                background: rgba(255, 255, 255, 0.25);
+            }
+            .filter-btn-action.clear {
+                color: #ff6666; /* Красноватый оттенок для кнопки очистки */
+            }
+            .filter-btn-action.clear:hover {
+                background: rgba(255, 102, 102, 0.2);
+            }
+            /* Обеспечиваем позиционирование в шапке модального окна */
+            .simple-modal__header, .filter--header {
+                position: relative; 
+            }
+        `;
+        $('head').append('<style>' + css + '</style>');
+
+        // Функция добавления кнопок в интерфейс фильтра
+        function addButtonsToFilter(node) {
+            var header = $(node).find('.simple-modal__header, .filter__header, .modal__title').first();
+            
+            // Если заголовок не найден или кнопки уже есть — отмена
+            if (header.length === 0 || header.find('.filter-custom-buttons').length > 0) return;
+
+            var buttonsHtml = $(`
+                <div class="filter-custom-buttons">
+                    <div class="filter-btn-action save">Сохранить</div>
+                    <div class="filter-btn-action clear">Очистить</div>
+                </div>
+            `);
+
+            // Логика кнопки "Сохранить"
+            buttonsHtml.find('.save').on('click', function () {
+                // В Lampa параметры фильтра применяются к активной активности (странице)
+                var activeActivity = Lampa.Activity.active();
+                
+                if (activeActivity && activeActivity.activity && activeActivity.activity.filter) {
+                    var currentFilter = activeActivity.activity.filter;
+                    // Сохраняем в память устройства
+                    Lampa.Storage.set('custom_saved_filter', currentFilter);
+                    Lampa.Noty.show('Настройки фильтра успешно сохранены!');
+                } else {
+                    // Если фильтр еще ни разу не применялся, просим нажать поиск для фиксации
+                    Lampa.Noty.show('Сначала нажмите "Начать поиск", затем Сохранить');
+                }
+            });
+
+            // Логика кнопки "Очистить"
+            buttonsHtml.find('.clear').on('click', function () {
+                Lampa.Storage.set('custom_saved_filter', null); // Сбрасываем память
+                Lampa.Noty.show('Сохраненный фильтр сброшен по умолчанию');
+            });
+
+            header.append(buttonsHtml);
+        }
+
+        // Следим за изменениями в DOM (появлением окна фильтра на экране)
+        var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                    mutation.addedNodes.forEach(function (node) {
+                        if (node.nodeType === 1) {
+                            var $node = $(node);
+                            // Ищем признаки того, что открылся именно фильтр (надпись "Начать поиск" или классы фильтра)
+                            if ($node.hasClass('filter') || $node.find('.filter').length > 0 || $node.text().indexOf('Начать поиск') !== -1) {
+                                addButtonsToFilter(node);
+                            }
+                        }
+                    });
+                }
+            });
         });
 
-        setTimeout(function() {
-            Lampa.Noty.show('Плагин v' + PLUGIN_VERSION + ' загружен');
-        }, 1000);
+        // Запускаем наблюдение за всем телом приложения
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Перехватываем открытие категорий/каталогов для Авто-применения фильтра
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type === 'start' && (e.component === 'category' || e.component === 'catalog')) {
+                var savedFilter = Lampa.Storage.get('custom_saved_filter', null);
+                
+                // Если есть сохраненный фильтр и текущий запрос идет без фильтров (чистый вход)
+                if (savedFilter && !e.object.filter) {
+                    e.object.filter = savedFilter; // Подставляем наши сохраненные значения
+                }
+            }
+        });
     }
 
-    if (window.appready) init();
-    else Lampa.Listener.follow('app', function(e) { if (e.type == 'ready') init(); });
-
+    // Проверяем, готова ли Lampa
+    if (window.appready) {
+        init();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') {
+                init();
+            }
+        });
+    }
 })();
