@@ -4,37 +4,36 @@
     function reloadStartPage() {
         var active = Lampa.Activity.active();
         
-        // Проверяем: 
-        // 1. Есть ли активная страница
-        // 2. Находимся ли мы всё ещё на стартовом экране
-        if (active && Lampa.Activity.history && Lampa.Activity.history.length <= 1) {
-            console.log('SyncRefresh: Прошло 1.5 сек, перерисовываем стартовую страницу');
+        if (active) {
+            // Маячок перед самым обновлением
+            Lampa.Noty.show('Обновляю страницу...'); 
             
-            // МАЯЧОК: Уведомление прямо перед началом обновления
-            Lampa.Noty.show('Обновляю стартовую страницу...'); 
-            
-            // Бесшовно перерисовываем страницу с уже подтянутыми данными
+            // Бесшовное обновление текущей страницы
             Lampa.Activity.replace(active);
-            
         } else {
-            // Маячок на случай, если вы уже ушли со стартовой страницы (для отладки)
-            console.log('SyncRefresh: Обновление отменено, вы уже перешли в другой раздел');
+            Lampa.Noty.show('Ошибка: Активная страница не найдена'); 
         }
     }
 
     function init() {
-        // Запускаем таймер на 1.5 секунды после готовности приложения
-        setTimeout(reloadStartPage, 10000);
+        // Как только Lampa готова, сразу кидаем маячок
+        Lampa.Noty.show('SyncRefresh: Плагин успешно запущен!');
+        
+        // Ждем 3 секунды (3000 мс) и обновляем
+        setTimeout(reloadStartPage, 3000);
     }
 
-    // Ждем полной загрузки интерфейса Lampa
-    if (window.appready) {
-        init();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type == 'ready') {
-                init();
-            }
-        });
+    // Надежный цикл проверки готовности приложения (специально для форков)
+    function checkLampaReady() {
+        if (window.appready) {
+            init();
+        } else {
+            // Если еще не готово, проверяем снова через полсекунды
+            setTimeout(checkLampaReady, 500);
+        }
     }
+
+    // Запускаем проверку
+    checkLampaReady();
+
 })();
