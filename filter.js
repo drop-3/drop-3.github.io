@@ -7,13 +7,10 @@
     var plugin_version = '8.0';
     var plugin_name = 'Фильтр 2';
 
-    function init() {
-        Lampa.Noty.show('Плагин "' + plugin_name + '" версия ' + plugin_version + ' загружен');
-
         // Базовые настройки
         var defaultState = {
             type: 'movie',
-            year_preset: '0', // Наш шаблонный год (из списка)
+            year_preset: '0', // Шаблонный год (из списка)
             year_from: '0',   // Год ОТ
             year_to: '0',     // Год ДО
             rating: '0',
@@ -46,7 +43,7 @@
 
         var curYear = new Date().getFullYear();
 
-        // 1. Генератор шаблонных годов (как на скриншоте)
+        // 1. Генератор шаблонных годов
         function getYearPresets() {
             var y = { '0': 'Любой' };
             for (var i = curYear; i >= curYear - 4; i--) {
