@@ -1,20 +1,21 @@
-// Версия: 7.1
-// Описание: Независимый пользовательский Фильтр 2 с выбором диапазона (Год ОТ и Год ДО) под пульт.
+// Версия: 8.0
+// Описание: Независимый пользовательский Фильтр 2. Комбинированный выбор годов (Шаблоны + ОТ и ДО).
 
 (function () {
     'use strict';
 
-    var plugin_version = '7.1';
+    var plugin_version = '8.0';
     var plugin_name = 'Фильтр 2';
 
     function init() {
         Lampa.Noty.show('Плагин "' + plugin_name + '" версия ' + plugin_version + ' загружен');
 
-        // Базовые настройки (заменили year на year_from и year_to)
+        // Базовые настройки
         var defaultState = {
             type: 'movie',
-            year_from: '0',
-            year_to: '0',
+            year_preset: '0', // Наш шаблонный год (из списка)
+            year_from: '0',   // Год ОТ
+            year_to: '0',     // Год ДО
             rating: '0',
             country: '0',
             sort: 'popularity.desc'
@@ -43,28 +44,53 @@
             'IT': 'Италия'
         };
 
-        // Генератор годов от текущего до 1950
-        function getYears() {
+        var curYear = new Date().getFullYear();
+
+        // 1. Генератор шаблонных годов (как на скриншоте)
+        function getYearPresets() {
             var y = { '0': 'Любой' };
-            var cur = new Date().getFullYear();
-            for (var i = cur; i >= 1950; i--) y[i.toString()] = i.toString();
+            for (var i = curYear; i >= curYear - 4; i--) {
+                y[i.toString()] = i.toString();
+            }
+            var rangeStart = curYear + 1;
+            while (rangeStart >= 1937) {
+                var rangeEnd = rangeStart - 5;
+                var key = rangeStart + '-' + rangeEnd;
+                y[key] = key;
+                rangeStart = rangeEnd;
+            }
             return y;
         }
-        var dictYear = getYears();
+        var dictYearPreset = getYearPresets();
 
-        // Если в памяти остался старый формат (year), сбрасываем его на новый
+        // 2. Генератор точных годов для ОТ и ДО
+        function getYearsExact() {
+            var y = { '0': 'Любой' };
+            for (var i = curYear; i >= 1930; i--) y[i.toString()] = i.toString();
+            return y;
+        }
+        var dictYearExact = getYearsExact();
+
+        // Защита от старых версий (сброс памяти при переходе на новые переменные)
         var savedState = Lampa.Storage.get('plugin_filter2_state', {});
-        if (savedState.year) savedState = {}; 
+        if (savedState.year !== undefined) savedState = {}; 
         var currentState = Object.assign({}, defaultState, savedState);
 
         function openMainMenu() {
+            // Подсказка пользователю, если ОТ и ДО перекрыты главным шаблоном
+            var fromDisplay = currentState.year_preset !== '0' ? '(игнорируется)' : dictYearExact[currentState.year_from];
+            var toDisplay = currentState.year_preset !== '0' ? '(игнорируется)' : dictYearExact[currentState.year_to];
+
             var items = [
                 { title: '🔍 НАЧАТЬ ПОИСК', id: 'search' },
                 { title: '🎬 Тип: ' + dictType[currentState.type], id: 'type' },
                 { title: '🌍 Страна: ' + dictCountry[currentState.country], id: 'country' },
-                // Две новые кнопки для диапазона
-                { title: '🗓 Год ОТ: ' + dictYear[currentState.year_from], id: 'year_from' },
-                { title: '🗓 Год ДО: ' + dictYear[currentState.year_to], id: 'year_to' },
+                
+                // Тройной блок годов
+                { title: '📅 Год (шаблоны): ' + dictYearPreset[currentState.year_preset], id: 'year_preset' },
+                { title: '🗓 Год ОТ: ' + fromDisplay, id: 'year_from' },
+                { title: '🗓 Год ДО: ' + toDisplay, id: 'year_to' },
+                
                 { title: '⭐️ Рейтинг: ' + dictRating[currentState.rating], id: 'rating' },
                 { title: '↕️ Сортировка: ' + dictSort[currentState.sort], id: 'sort' },
                 { title: '💾 Сохранить как по умолчанию', id: 'save' },
@@ -105,7 +131,8 @@
             if (type === 'rating') dict = dictRating;
             if (type === 'sort') dict = dictSort;
             if (type === 'country') dict = dictCountry;
-            if (type === 'year_from' || type === 'year_to') dict = dictYear; // Используем один список годов
+            if (type === 'year_preset') dict = dictYearPreset;
+            if (type === 'year_from' || type === 'year_to') dict = dictYearExact;
 
             for (var k in dict) {
                 items.push({
@@ -132,30 +159,52 @@
             var query = [];
             query.push('sort_by=' + params.sort);
             
-            // Логика обработки "Год ОТ" и "Год ДО" для API
+            // Префиксы дат для API TMDB
             var dateGte = (params.type === 'movie') ? 'primary_release_date.gte=' : 'first_air_date.gte=';
             var dateLte = (params.type === 'movie') ? 'primary_release_date.lte=' : 'first_air_date.lte=';
             var yearExact = (params.type === 'movie') ? 'primary_release_year=' : 'first_air_date_year=';
 
-            if (params.year_from !== '0' && params.year_to !== '0') {
-                if (params.year_from === params.year_to) {
-                    // Если выбран один и тот же год в обоих пунктах
-                    query.push(yearExact + params.year_from);
+            var activeYear = '';
+            var isRange = false;
+            var yMin, yMax;
+
+            // Логика приоритета: проверяем шаблоны
+            if (params.year_preset !== '0') {
+                if (params.year_preset.indexOf('-') !== -1) {
+                    var parts = params.year_preset.split('-');
+                    yMin = Math.min(parts[0], parts[1]);
+                    yMax = Math.max(parts[0], parts[1]);
+                    isRange = true;
                 } else {
-                    // Если выбран диапазон (плагин сам поймет, какое число больше, а какое меньше)
-                    var min = Math.min(params.year_from, params.year_to);
-                    var max = Math.max(params.year_from, params.year_to);
-                    query.push(dateGte + min + '-01-01');
-                    query.push(dateLte + max + '-12-31');
+                    activeYear = params.year_preset; // Если шаблон — это одиночный год (например, 2026)
                 }
-            } else if (params.year_from !== '0') {
-                // Только ОТ
-                query.push(dateGte + params.year_from + '-01-01');
-            } else if (params.year_to !== '0') {
-                // Только ДО
-                query.push(dateLte + params.year_to + '-12-31');
+            } 
+            // Если шаблон стоит на "Любой", смотрим на ОТ и ДО
+            else if (params.year_from !== '0' || params.year_to !== '0') {
+                if (params.year_from !== '0' && params.year_to !== '0') {
+                    if (params.year_from === params.year_to) {
+                        activeYear = params.year_from;
+                    } else {
+                        yMin = Math.min(params.year_from, params.year_to);
+                        yMax = Math.max(params.year_from, params.year_to);
+                        isRange = true;
+                    }
+                } else if (params.year_from !== '0') {
+                    query.push(dateGte + params.year_from + '-01-01');
+                } else if (params.year_to !== '0') {
+                    query.push(dateLte + params.year_to + '-12-31');
+                }
+            }
+
+            // Применяем вычисленный год к запросу
+            if (isRange) {
+                query.push(dateGte + yMin + '-01-01');
+                query.push(dateLte + yMax + '-12-31');
+            } else if (activeYear !== '') {
+                query.push(yearExact + activeYear);
             }
             
+            // Рейтинг
             if (params.rating !== '0') {
                 query.push('vote_average.gte=' + params.rating);
                 query.push('vote_count.gte=50'); 
@@ -163,10 +212,10 @@
                 query.push('vote_count.gte=50');
             }
             
+            // Страна
             if (params.country !== '0') query.push('with_origin_country=' + params.country);
 
             var finalUrl = 'discover/' + params.type + '?' + query.join('&');
-            
             var pageTitle = 'Фильтр 2: ' + dictType[params.type];
             if (params.country !== '0') pageTitle += ' (' + dictCountry[params.country] + ')';
 
