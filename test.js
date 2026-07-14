@@ -2,7 +2,7 @@
     'use strict';
 
     // ВРЕМЯ ЗАДЕРЖКИ В МИЛЛИСЕКУНДАХ (1500 = 1.5 секунды)
-    var delay_time = 1000; 
+    var delay_time = 3000; 
     
     var executed = false;
 
@@ -14,7 +14,7 @@
     }
 
     function init() {
-        // Защита: гарантирует, что код выполнится только один раз при запуске
+        // Код выполнится только один раз при запуске
         if (executed) return;
         executed = true;
 
