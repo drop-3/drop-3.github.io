@@ -1,16 +1,17 @@
-// Версия: 3.0
-// Описание: Независимый пользовательский Фильтр 2 в боковом меню с выбором стран и фиксом ошибки базы данных.
+// Версия: 4.0
+// Описание: Независимый пользовательский Фильтр 2 в боковом меню (исправлен вызов компонента category_full).
 
 (function () {
     'use strict';
 
-    var plugin_version = '3.0';
+    var plugin_version = '4.0';
     var plugin_name = 'Фильтр 2';
 
     function init() {
+        // Уведомление об успешной загрузке версии 4.0
         Lampa.Noty.show('Плагин "' + plugin_name + '" версия ' + plugin_version + ' загружен');
 
-        // Базовые настройки фильтра (добавилась country)
+        // Базовые настройки фильтра
         var defaultState = {
             type: 'movie',
             year: '0',
@@ -19,18 +20,18 @@
             sort: 'popularity.desc'
         };
 
-        // Словари для отображения
+        // Словари для красивого отображения
         var dictType = { 'movie': 'Фильмы', 'tv': 'Сериалы' };
         var dictSort = { 'popularity.desc': 'Популярные', 'vote_average.desc': 'По высокому рейтингу', 'primary_release_date.desc': 'Новинки' };
         var dictRating = { '0': 'Любой', '5': 'Больше 5', '6': 'Больше 6', '7': 'Больше 7', '8': 'Больше 8' };
         
-        // Словарь стран (используем стандартные коды TMDB/ISO 3166-1)
+        // Словарь стран (ISO 3166-1)
         var dictCountry = {
             '0': 'Любая',
-            'RU': 'Россия',
-            'US': 'США',
             'KR': 'Южная Корея',
             'TR': 'Турция',
+            'RU': 'Россия',
+            'US': 'США',
             'GB': 'Великобритания',
             'JP': 'Япония',
             'FR': 'Франция',
@@ -50,6 +51,7 @@
         }
         var dictYear = getYears();
 
+        // Загружаем сохраненные настройки
         var currentState = Object.assign({}, defaultState, Lampa.Storage.get('plugin_filter2_state', {}));
 
         function openMainMenu() {
@@ -98,7 +100,7 @@
             if (type === 'year') dict = dictYear;
             if (type === 'rating') dict = dictRating;
             if (type === 'sort') dict = dictSort;
-            if (type === 'country') dict = dictCountry; // Добавили обработку страны
+            if (type === 'country') dict = dictCountry;
 
             for (var k in dict) {
                 items.push({
@@ -121,13 +123,13 @@
             });
         }
 
+        // Главная функция поиска (ИСПОЛЬЗУЕТ ПРАВИЛЬНЫЙ КОМПОНЕНТ)
         function doSearch(params) {
-            var baseUrl = 'discover/' + params.type;
             var query = [];
             
+            // Формируем параметры запроса
             query.push('sort_by=' + params.sort);
             
-            // Защита от фильмов-мусора с накрученным рейтингом
             if (params.rating !== '0' || params.sort === 'vote_average.desc') {
                 query.push('vote_count.gte=50'); 
             }
@@ -136,22 +138,30 @@
                 if (params.type === 'movie') query.push('primary_release_year=' + params.year);
                 else query.push('first_air_date_year=' + params.year);
             }
+            
             if (params.rating !== '0') {
                 query.push('vote_average.gte=' + params.rating);
             }
+            
             if (params.country !== '0') {
-                query.push('with_origin_country=' + params.country); // Параметр для страны
+                query.push('with_origin_country=' + params.country);
             }
 
-            var finalUrl = baseUrl + '?' + query.join('&');
+            // Собираем URL для внутреннего парсера Lampa (TMDB)
+            var finalUrl = 'discover/' + params.type + '?' + query.join('&');
+            
+            // Красивый заголовок для страницы результатов
             var pageTitle = 'Фильтр 2: ' + dictType[params.type];
+            if (params.country !== '0') pageTitle += ' (' + dictCountry[params.country] + ')';
 
+            // Отправляем команду в ядро Lampa (category_full решает проблему с forEach)
             Lampa.Activity.push({
                 url: finalUrl,
                 title: pageTitle,
-                component: 'category',
-                source: 'tmdb', // ИСПРАВЛЕНИЕ ОШИБКИ: явно указываем базу данных
-                page: 1
+                component: 'category_full', // ИСПРАВЛЕНИЕ: правильный компонент для подборок
+                source: 'tmdb',             // ИСПРАВЛЕНИЕ: строго указываем базу
+                page: 1,
+                filter: params              // Передаем параметры, чтобы Лампа понимала контекст
             });
         }
 
