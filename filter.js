@@ -91,12 +91,12 @@
                 
                 { title: '⭐️ Рейтинг: ' + dictRating[currentState.rating], id: 'rating' },
                 { title: '↕️ Сортировка: ' + dictSort[currentState.sort], id: 'sort' },
-                { title: '💾 Сохранить как по умолчанию', id: 'save' },
+                { title: '💾 Сохранить по умолчанию', id: 'save' },
                 { title: '🗑 Очистить настройки (Сброс)', id: 'clear' }
             ];
 
             Lampa.Select.show({
-                title: 'Настройки: Фильтр 2',
+                title: 'Фильтр 2',
                 items: items,
                 onSelect: function (a) {
                     if (a.id === 'search') {
