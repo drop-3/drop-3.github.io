@@ -1,132 +1,172 @@
-// Версия: 1.0
-// Описание: Плагин для сохранения и автозагрузки состояния фильтра.
+// Версия: 2.0
+// Описание: Независимый пользовательский Фильтр 2 в боковом меню с сохранением настроек.
 
 (function () {
     'use strict';
 
-    var plugin_version = '1.0';
-    var plugin_name = 'SaveFilter';
+    var plugin_version = '2.0';
+    var plugin_name = 'Фильтр 2';
 
     function init() {
-        // Уведомление при успешной загрузке (как договаривались)
-        Lampa.Noty.show('Плагин "Сохранение фильтра" версия ' + plugin_version + ' загружен');
+        // Уведомление об успешной загрузке версии 2.0
+        Lampa.Noty.show('Плагин "' + plugin_name + '" версия ' + plugin_version + ' загружен');
 
-        // Добавляем CSS стили для наших кнопок
-        var css = `
-            .filter-custom-buttons {
-                position: absolute;
-                right: 20px;
-                top: 50%;
-                transform: translateY(-50%);
-                display: flex;
-                gap: 15px;
-                z-index: 100;
-            }
-            .filter-btn-action {
-                background: rgba(255, 255, 255, 0.1);
-                padding: 6px 12px;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 0.9em;
-                transition: background 0.2s, color 0.2s;
-                color: #fff;
-            }
-            .filter-btn-action:hover {
-                background: rgba(255, 255, 255, 0.25);
-            }
-            .filter-btn-action.clear {
-                color: #ff6666; /* Красноватый оттенок для кнопки очистки */
-            }
-            .filter-btn-action.clear:hover {
-                background: rgba(255, 102, 102, 0.2);
-            }
-            /* Обеспечиваем позиционирование в шапке модального окна */
-            .simple-modal__header, .filter--header {
-                position: relative; 
-            }
-        `;
-        $('head').append('<style>' + css + '</style>');
+        // Базовые (дефолтные) настройки фильтра
+        var defaultState = {
+            type: 'movie',
+            year: '0',
+            rating: '0',
+            sort: 'popularity.desc'
+        };
 
-        // Функция добавления кнопок в интерфейс фильтра
-        function addButtonsToFilter(node) {
-            var header = $(node).find('.simple-modal__header, .filter__header, .modal__title').first();
-            
-            // Если заголовок не найден или кнопки уже есть — отмена
-            if (header.length === 0 || header.find('.filter-custom-buttons').length > 0) return;
+        // Словари для отображения красивых названий в меню
+        var dictType = { 'movie': 'Фильмы', 'tv': 'Сериалы' };
+        var dictSort = { 'popularity.desc': 'Популярные', 'vote_average.desc': 'По высокому рейтингу', 'primary_release_date.desc': 'Новинки' };
+        var dictRating = { '0': 'Любой', '5': 'Больше 5', '6': 'Больше 6', '7': 'Больше 7', '8': 'Больше 8' };
 
-            var buttonsHtml = $(`
-                <div class="filter-custom-buttons">
-                    <div class="filter-btn-action save">Сохранить</div>
-                    <div class="filter-btn-action clear">Очистить</div>
-                </div>
-            `);
+        // Генератор списка годов (от текущего до 1990)
+        function getYears() {
+            var y = { '0': 'Любой' };
+            var cur = new Date().getFullYear();
+            for (var i = cur; i >= 1990; i--) y[i] = i.toString();
+            return y;
+        }
+        var dictYear = getYears();
 
-            // Логика кнопки "Сохранить"
-            buttonsHtml.find('.save').on('click', function () {
-                // В Lampa параметры фильтра применяются к активной активности (странице)
-                var activeActivity = Lampa.Activity.active();
-                
-                if (activeActivity && activeActivity.activity && activeActivity.activity.filter) {
-                    var currentFilter = activeActivity.activity.filter;
-                    // Сохраняем в память устройства
-                    Lampa.Storage.set('custom_saved_filter', currentFilter);
-                    Lampa.Noty.show('Настройки фильтра успешно сохранены!');
-                } else {
-                    // Если фильтр еще ни разу не применялся, просим нажать поиск для фиксации
-                    Lampa.Noty.show('Сначала нажмите "Начать поиск", затем Сохранить');
+        // Загружаем сохраненные настройки (или берем дефолтные, если их нет)
+        var currentState = Object.assign({}, defaultState, Lampa.Storage.get('plugin_filter2_state', {}));
+
+        // Функция открытия главного меню нашего Фильтра 2
+        function openMainMenu() {
+            var items = [
+                { title: '🔍 НАЧАТЬ ПОИСК', id: 'search' },
+                { title: '🎬 Тип: ' + dictType[currentState.type], id: 'type' },
+                { title: '📅 Год: ' + dictYear[currentState.year], id: 'year' },
+                { title: '⭐️ Рейтинг: ' + dictRating[currentState.rating], id: 'rating' },
+                { title: '↕️ Сортировка: ' + dictSort[currentState.sort], id: 'sort' },
+                { title: '💾 Сохранить как по умолчанию', id: 'save' },
+                { title: '🗑 Очистить настройки (Сброс)', id: 'clear' }
+            ];
+
+            // Используем нативный Lampa.Select (идеально работает с пультами)
+            Lampa.Select.show({
+                title: 'Настройки: Фильтр 2',
+                items: items,
+                onSelect: function (a) {
+                    if (a.id === 'search') {
+                        doSearch(currentState);
+                    } else if (a.id === 'save') {
+                        Lampa.Storage.set('plugin_filter2_state', currentState);
+                        Lampa.Noty.show('Настройки Фильтр 2 успешно сохранены!');
+                        setTimeout(openMainMenu, 50); // Возвращаемся в меню
+                    } else if (a.id === 'clear') {
+                        currentState = Object.assign({}, defaultState);
+                        Lampa.Storage.set('plugin_filter2_state', currentState);
+                        Lampa.Noty.show('Настройки сброшены по умолчанию!');
+                        setTimeout(openMainMenu, 50); // Возвращаемся в меню
+                    } else {
+                        openSubMenu(a.id); // Открываем подменю для выбора (Год, Тип и т.д.)
+                    }
+                },
+                onBack: function () {
+                    Lampa.Controller.toggle('menu'); // При возврате фокус уходит обратно в левое меню
                 }
             });
-
-            // Логика кнопки "Очистить"
-            buttonsHtml.find('.clear').on('click', function () {
-                Lampa.Storage.set('custom_saved_filter', null); // Сбрасываем память
-                Lampa.Noty.show('Сохраненный фильтр сброшен по умолчанию');
-            });
-
-            header.append(buttonsHtml);
         }
 
-        // Следим за изменениями в DOM (появлением окна фильтра на экране)
-        var observer = new MutationObserver(function (mutations) {
-            mutations.forEach(function (mutation) {
-                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                    mutation.addedNodes.forEach(function (node) {
-                        if (node.nodeType === 1) {
-                            var $node = $(node);
-                            // Ищем признаки того, что открылся именно фильтр (надпись "Начать поиск" или классы фильтра)
-                            if ($node.hasClass('filter') || $node.find('.filter').length > 0 || $node.text().indexOf('Начать поиск') !== -1) {
-                                addButtonsToFilter(node);
-                            }
-                        }
-                    });
+        // Функция открытия подменю для выбора конкретного параметра
+        function openSubMenu(type) {
+            var items = [];
+            var dict = {};
+            var currentVal = currentState[type];
+
+            if (type === 'type') dict = dictType;
+            if (type === 'year') dict = dictYear;
+            if (type === 'rating') dict = dictRating;
+            if (type === 'sort') dict = dictSort;
+
+            for (var k in dict) {
+                items.push({
+                    title: dict[k],
+                    value: k,
+                    selected: k === currentVal
+                });
+            }
+
+            Lampa.Select.show({
+                title: 'Выберите значение',
+                items: items,
+                onSelect: function (a) {
+                    currentState[type] = a.value; // Обновляем параметр
+                    setTimeout(openMainMenu, 50); // Возвращаемся в главное меню фильтра
+                },
+                onBack: function () {
+                    setTimeout(openMainMenu, 50);
                 }
             });
-        });
+        }
 
-        // Запускаем наблюдение за всем телом приложения
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        // Перехватываем открытие категорий/каталогов для Авто-применения фильтра
-        Lampa.Listener.follow('activity', function (e) {
-            if (e.type === 'start' && (e.component === 'category' || e.component === 'catalog')) {
-                var savedFilter = Lampa.Storage.get('custom_saved_filter', null);
-                
-                // Если есть сохраненный фильтр и текущий запрос идет без фильтров (чистый вход)
-                if (savedFilter && !e.object.filter) {
-                    e.object.filter = savedFilter; // Подставляем наши сохраненные значения
-                }
+        // Функция формирования запроса и открытия страницы с результатами
+        function doSearch(params) {
+            var baseUrl = 'discover/' + params.type;
+            var query = [];
+            
+            query.push('sort_by=' + params.sort);
+            
+            if (params.year !== '0') {
+                if (params.type === 'movie') query.push('primary_release_year=' + params.year);
+                else query.push('first_air_date_year=' + params.year);
             }
-        });
+            if (params.rating !== '0') {
+                query.push('vote_average.gte=' + params.rating);
+            }
+
+            var finalUrl = baseUrl + '?' + query.join('&');
+            var pageTitle = 'Фильтр 2: ' + (params.type === 'movie' ? 'Фильмы' : 'Сериалы');
+
+            // Даем команду Lampa открыть новую страницу с результатами
+            Lampa.Activity.push({
+                url: finalUrl,
+                title: pageTitle,
+                component: 'category',
+                page: 1
+            });
+        }
+
+        // Внедряем кнопку в главное левое меню Lampa
+        function addMenuButton() {
+            // Защита от двойного добавления
+            if ($('.menu__list .filter2-item').length) return;
+            
+            // Создаем элемент меню с иконкой "воронки"
+            var item = $('<li class="menu__item selector filter2-item" data-action="filter2"><div class="menu__ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div><div class="menu__text">Фильтр 2</div></li>');
+            
+            // Обработчик нажатия (enter на пульте или клик мышью)
+            item.on('hover:enter click', function () {
+                openMainMenu();
+            });
+
+            // Добавляем в самый низ основного списка меню
+            $('.menu .menu__list').eq(0).append(item);
+        }
+
+        // Пытаемся добавить кнопку сразу, если приложение уже готово
+        if (window.appready) {
+            addMenuButton();
+        } else {
+            // Либо ждем события готовности
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type === 'ready') addMenuButton();
+            });
+        }
     }
 
-    // Проверяем, готова ли Lampa
+    // Точка входа
     if (window.appready) {
         init();
     } else {
         Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') {
-                init();
-            }
+            if (e.type === 'ready') init();
         });
     }
 })();
