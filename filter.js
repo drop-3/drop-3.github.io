@@ -7,6 +7,8 @@
     var plugin_version = '8.0';
     var plugin_name = 'Фильтр 2';
 
+    
+
         // Базовые настройки
         var defaultState = {
             type: 'movie',
@@ -90,12 +92,12 @@
                 
                 { title: '⭐️ Рейтинг: ' + dictRating[currentState.rating], id: 'rating' },
                 { title: '↕️ Сортировка: ' + dictSort[currentState.sort], id: 'sort' },
-                { title: '💾 Сохранить по умолчанию', id: 'save' },
+                { title: '💾 Сохранить как по умолчанию', id: 'save' },
                 { title: '🗑 Очистить настройки (Сброс)', id: 'clear' }
             ];
 
             Lampa.Select.show({
-                title: 'Фильтр 2',
+                title: 'Настройки: Фильтр 2',
                 items: items,
                 onSelect: function (a) {
                     if (a.id === 'search') {
