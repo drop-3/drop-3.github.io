@@ -24,7 +24,7 @@
 
     function init() {
         // Запускаем таймер на 1.5 секунды после готовности приложения
-        setTimeout(reloadStartPage, 1500);
+        setTimeout(reloadStartPage, 10000);
     }
 
     // Ждем полной загрузки интерфейса Lampa
