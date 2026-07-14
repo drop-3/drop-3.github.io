@@ -1,16 +1,16 @@
-// Версия: 5.0
-// Описание: Независимый пользовательский Фильтр 2 в боковом меню (исправлена интеграция с ядром запросов Lampa).
+// Версия: 6.0
+// Описание: Независимый пользовательский Фильтр 2. Прямой вызов discover API через category_full.
 
 (function () {
     'use strict';
 
-    var plugin_version = '5.0';
+    var plugin_version = '6.0';
     var plugin_name = 'Фильтр 2';
 
     function init() {
         Lampa.Noty.show('Плагин "' + plugin_name + '" версия ' + plugin_version + ' загружен');
 
-        // Базовые настройки фильтра
+        // Базовые настройки
         var defaultState = {
             type: 'movie',
             year: '0',
@@ -19,20 +19,22 @@
             sort: 'popularity.desc'
         };
 
-        // Словари для красивого отображения
         var dictType = { 'movie': 'Фильмы', 'tv': 'Сериалы' };
         var dictSort = { 'popularity.desc': 'Популярные', 'vote_average.desc': 'По высокому рейтингу', 'primary_release_date.desc': 'Новинки' };
         var dictRating = { '0': 'Любой', '5': 'Больше 5', '6': 'Больше 6', '7': 'Больше 7', '8': 'Больше 8' };
         
-        // Словарь стран (по стандарту TMDB ISO 3166-1)
+        // Словарь стран. Чтобы добавить свою, впиши её 2-буквенный код.
         var dictCountry = {
             '0': 'Любая',
             'KR': 'Южная Корея',
             'TR': 'Турция',
-            'RU': 'Россия',
             'US': 'США',
+            'RU': 'Россия',
             'GB': 'Великобритания',
             'JP': 'Япония',
+            'TH': 'Таиланд',   // Добавлено для лакорнов
+            'BR': 'Бразилия',  // Добавлено
+            'MX': 'Мексика',   // Добавлено
             'FR': 'Франция',
             'ES': 'Испания',
             'IN': 'Индия',
@@ -120,46 +122,48 @@
             });
         }
 
-        // --- ГЛАВНАЯ МАГИЯ 5.0 ---
+        // Формируем ИДЕАЛЬНЫЙ запрос
         function doSearch(params) {
+            var query = [];
+            
+            // Сортировка
+            query.push('sort_by=' + params.sort);
+            
+            // Год (у фильмов и сериалов разные переменные в базе TMDB)
+            if (params.year !== '0') {
+                if (params.type === 'movie') query.push('primary_release_year=' + params.year);
+                else query.push('first_air_date_year=' + params.year);
+            }
+            
+            // Рейтинг и защита от индийского мусора (минимум 50 оценок)
+            if (params.rating !== '0') {
+                query.push('vote_average.gte=' + params.rating);
+                query.push('vote_count.gte=50'); 
+            } else if (params.sort.indexOf('vote_average') !== -1) {
+                query.push('vote_count.gte=50');
+            }
+            
+            // Страна
+            if (params.country !== '0') {
+                query.push('with_origin_country=' + params.country);
+            }
+
+            // Склеиваем URL. Выглядеть будет так: discover/tv?with_origin_country=KR&first_air_date_year=1994...
+            var finalUrl = 'discover/' + params.type + '?' + query.join('&');
+            
+            // Формируем красивый заголовок для страницы
             var pageTitle = 'Фильтр 2: ' + dictType[params.type];
             if (params.country !== '0') pageTitle += ' (' + dictCountry[params.country] + ')';
 
-            // Создаем объект, который притворяется системным фильтром Лампы
-            // Лампа дернет функцию get() перед отправкой запроса на сервер
-            var mockFilter = {
-                get: function() {
-                    var is_tv = params.type === 'tv';
-                    var query = [];
-                    
-                    query.push('sort_by=' + params.sort);
-                    
-                    if (params.year !== '0') {
-                        query.push((is_tv ? 'first_air_date_year=' : 'primary_release_year=') + params.year);
-                    }
-                    
-                    if (params.rating !== '0') {
-                        query.push('vote_average.gte=' + params.rating);
-                        query.push('vote_count.gte=50'); // Отсекаем мусор с 1 голосом
-                    }
-                    
-                    if (params.country !== '0') {
-                        query.push('with_origin_country=' + params.country);
-                    }
-                    
-                    return query.join('&');
-                }
-            };
-
-            // Отправляем команду в ядро. 
-            // URL указываем базовый, Лампа сама превратит его в discover, увидев наш фильтр.
+            // Даем команду Лампе. 
+            // Обрати внимание: мы НЕ передаем переменную `filter: ...`, чтобы Лампа не пыталась
+            // отрисовать свою кнопку фильтра и не сломалась об наши данные.
             Lampa.Activity.push({
-                url: params.type, // Просто 'movie' или 'tv'
+                url: finalUrl,
                 title: pageTitle,
-                component: 'category', // Возвращаем стабильный компонент сетки
-                source: 'tmdb',
-                page: 1,
-                filter: mockFilter // Подсовываем нашу обманку
+                component: 'category_full', // Включаем режим сплошной сетки (как на 2-м фото)
+                source: 'tmdb',             // Указываем базу
+                page: 1
             });
         }
 
