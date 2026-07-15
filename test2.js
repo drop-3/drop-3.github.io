@@ -1,26 +1,13 @@
-/* --- СТАРТ БЛОКА: Финальный минималистичный плагин --- */
+/* --- СТАРТ БЛОКА: Снайперский перехват JSON (в стиле минимализма) --- */
 (function () {
     'use strict';
 
-    // 1. Работа с локальной памятью (сохранение и получение JSON)
     function getSaves() {
         try { return JSON.parse(localStorage.getItem('lampa_my_torrents') || '[]'); } 
         catch(e) { return []; }
     }
 
-    function addSave(item) {
-        var list = getSaves();
-        // Проверка на дубликаты
-        if (!list.some(function(i) { return i.magnet === item.magnet || (i.hash && i.hash === item.hash); })) {
-            list.unshift(item); // Добавляем в начало списка
-            localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
-            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('💾 Сохранено в Лампу!');
-        } else {
-            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Уже есть в сохраненных!');
-        }
-    }
-
-    // 2. Добавляем кнопку "Сохранить" в контекстное меню раздач
+    // 1. Кнопка "Сохранить в Лампу" в контекстном меню
     if (window.Lampa && window.Lampa.Select) {
         var old_show = Lampa.Select.show;
         Lampa.Select.show = function(params) {
@@ -35,77 +22,52 @@
             }
             
             if (magnet) {
-                params.items.push({
-                    title: '💾 Сохранить в Лампу',
-                    action: 'save_local'
-                });
-                
+                params.items.push({ title: '💾 Сохранить в Лампу', action: 'save_local' });
                 var old_onSelect = params.onSelect;
                 params.onSelect = function(item) {
                     if (item && item.action === 'save_local') {
-                        // ТОТ САМЫЙ НАМЁК: Достаём постер и название из текущей карточки фильма!
-                        var act = Lampa.Activity.active();
-                        var card = act ? (act.card || act.data || (act.activity ? (act.activity.card || act.activity.data) : null)) : null;
-                        var title = card ? (card.title || card.name) : (d.title || 'Без названия');
-                        var img = card ? (card.img || card.poster || card.backdrop) : '';
+                        var act = Lampa.Activity.active() ? (Lampa.Activity.active().activity || {}) : {};
+                        var list = getSaves();
                         
-                        addSave({
-                            title: title,
-                            img: img, // Сохраняем постер
-                            magnet: magnet,
-                            hash: hash || magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1')
+                        // Сохраняем ТОТ САМЫЙ набор: название, постер и хэш!
+                        list.unshift({
+                            title: act.title || act.name || d.title || 'Без названия',
+                            poster: act.poster || act.img || act.backdrop || '',
+                            img: act.img || act.poster || act.backdrop || '',
+                            hash: hash || magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1'),
+                            magnet: magnet
                         });
-                    } else if (old_onSelect) {
-                        old_onSelect(item);
-                    }
+                        
+                        localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
+                        if (window.Lampa && Lampa.Noty) Lampa.Noty.show('💾 Сохранено в Лампу!');
+                    } else if (old_onSelect) old_onSelect(item);
                 };
             }
             return old_show(params);
         };
     }
 
-    // 3. ТОТ САМЫЙ НАМЁК: Подменяем сетевой запрос JSON на нашу локальную память!
-    function overrideTorrServerData() {
-        if (window.Lampa && window.Lampa.Torrserver && !Lampa.Torrserver._my_local_hook) {
-            Lampa.Torrserver._my_local_hook = true;
+    // 2. СНАЙПЕРСКИЙ ПЕРЕХВАТ: подменяем сетевой ответ самой Лампы на нашу локальную память!
+    if (window.Lampa && window.Lampa.Network) {
+        ['silent', 'get', 'native'].forEach(function(method) {
+            var orig = Lampa.Network[method];
+            if (!orig) return;
             
-            var old_list = Lampa.Torrserver.list;
-            Lampa.Torrserver.list = function(onSuccess, onError) {
-                // Превращаем наши сохранения в стандартный формат JSON ТоррСервера
-                var my_saved_json = getSaves().map(function(item) {
-                    return {
-                        title: '📁 ' + item.title,
-                        img: item.img || '', // Передаём постер Лампе
-                        poster: item.img || '',
-                        hash: item.hash,
-                        magnet: item.magnet,
-                        size: 0,
-                        loaded_size: 0,
-                        torrent_size: 0,
-                        stat_string: '💾 Сохранено в памяти ТВ',
-                        status: 'local'
-                    };
-                });
+            Lampa.Network[method] = function(url, onSuccess, onError) {
+                var active = Lampa.Activity.active();
+                var is_torrents = active && (active.component === 'torrents' || active.component === 'mytorrents');
+                var is_ts_url = typeof url === 'string' && (url.indexOf('echo') > -1 || url.indexOf('torrserver') > -1 || url.indexOf('/torrents/') > -1 || url.indexOf('mytorrents') > -1);
                 
-                // Запрашиваем данные у сервера и склеиваем: СНАЧАЛА наши сохранения, затем сетевые
-                if (old_list) {
-                    old_list(function(server_list) {
-                        onSuccess(my_saved_json.concat(server_list || []));
-                    }, function(err) {
-                        // Если ТоррСервер выключен (ошибка сети) — всё равно отдаём наши сохранения!
-                        if (my_saved_json.length > 0) onSuccess(my_saved_json);
-                        else if (onError) onError(err);
-                    });
-                } else {
-                    onSuccess(my_saved_json);
+                // Если Лампа запрашивает данные для экрана торрентов — вместо сети отдаём наш JSON!
+                if (is_torrents || is_ts_url) {
+                    var saves = getSaves();
+                    if (onSuccess) onSuccess(saves);
+                    return;
                 }
+                return orig.apply(this, arguments);
             };
-        }
+        });
     }
 
-    // Включаем подмену данных сразу и проверяем через секунду (если ядро Лампы загружалось чуть дольше)
-    overrideTorrServerData();
-    setTimeout(overrideTorrServerData, 1000);
-
 })();
-/* --- КОНЕЦ БЛОКА: Финальный минималистичный плагин --- */
+/* --- КОНЕЦ БЛОКА --- */
