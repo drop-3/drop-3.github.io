@@ -11,7 +11,7 @@
         speedtest: 'http://speedtest.vokino.tv/?R=3'
     };
 
-    // Генератор пунктов меню (иконки строго 1.2em, чтобы не ломать вёрстку форков!)
+    // Генератор пунктов меню
     function createMenuItem(title, svgPath) {
         return '<div class="settings-folder" style="padding:0!important">' +
                    '<div style="width:2.2em;height:1.7em;padding-right:.5em">' +
@@ -109,7 +109,7 @@
         keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
     }
 
-    // Флажок, чтобы скрипт не перехватывал сам себя
+    // Флажок защиты от зацикливания
     var isCustomMenuOpen = false;
 
     // Отображение нашего кастомного меню Выхода
@@ -158,7 +158,7 @@
         });
     }
 
-    // Регистрируем настройки (Все имена переменных уникальны, наложений больше не будет!)
+    // Регистрируем настройки
     function addSettings() {
         Lampa.SettingsApi.addComponent({
             component: 'back_menu',
@@ -176,7 +176,7 @@
             { name: 'back_menu_twitch', field: 'Twitch' },
             { name: 'back_menu_rutube', field: 'RuTube' },
             { name: 'back_menu_fork', field: 'ForkPlayer' },
-            { name: 'back_menu_drm', field: 'DRM Play' } // <-- Исправлен дубликат, вызывавший наложение!
+            { name: 'back_menu_drm', field: 'DRM Play' }
         ];
 
         params.forEach(function (param) {
@@ -204,38 +204,39 @@
         function init() {
             addSettings();
 
-            // ТОТ САМЫЙ МЕТОД ИЗ ПОДСКАЗКИ: Слушаем переключение на окно Select/Modal
+            // БЕЗОПАСНЫЙ ПЕРЕХВАТЧИК (Без спам-таймеров и с защитой от вылетов)
             Lampa.Controller.listener.follow('toggle', function (e) {
                 if (!e || !e.name) return;
                 var ctrlName = String(e.name).toLowerCase();
                 
-                // Если открылся select или modal И это НЕ наше собственное меню
-                if ((ctrlName === 'select' || ctrlName === 'modal') && !isCustomMenuOpen) {
+                // Если открылся select И это НЕ наше собственное меню
+                if (ctrlName === 'select' && !isCustomMenuOpen) {
                     
-                    // ТВ отрисовывает окна с задержкой. Проверяем экран каждые 30 миллисекунд (до 15 раз)
-                    var attempts = 0;
-                    var checkTimer = setInterval(function () {
-                        attempts++;
-                        if (attempts > 15) { clearInterval(checkTimer); return; } // Если через 450мс окно не появилось — сдаёмся
-
-                        // Ищем любой видимый заголовок на экране
-                        var titleElem = $('.selectbox__title, .modal__title, [class*="title"]').filter(':visible');
+                    // Даем ТВ ровно 50мс спокойно достроить окно и скроллбары
+                    setTimeout(function () {
+                        var titleElem = $('.selectbox__title');
                         if (!titleElem.length) return;
                         
                         var title = titleElem.text().toLowerCase().trim();
                         var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'выход').toLowerCase().trim();
                         
-                        // Если в заголовке есть слово "выход", "exit" или "закрыть"
+                        // Если это окно Выхода
                         if (title.indexOf(targetTitle) !== -1 || title.indexOf('выход') !== -1 || title.indexOf('exit') !== -1 || title.indexOf('закрыть') !== -1) {
-                            clearInterval(checkTimer); // Останавливаем поиск
-                            if (Lampa.Select && Lampa.Select.close) Lampa.Select.close();
-                            if (Lampa.Modal && Lampa.Modal.close) Lampa.Modal.close();
                             
+                            // БРОНЯ TRY...CATCH: закрываем окно безопасно!
+                            // Если скролл еще не готов, ошибка проглотится и оранжевый экран НЕ вылезет.
+                            try {
+                                if (Lampa.Select && Lampa.Select.close) Lampa.Select.close();
+                            } catch (err) {
+                                console.log('Безопасное закрытие окна:', err);
+                            }
+                            
+                            // Открываем наше меню
                             setTimeout(function () {
-                                showBackMenu(); // Открываем наше красивое меню!
-                            }, 30);
+                                showBackMenu();
+                            }, 50);
                         }
-                    }, 30);
+                    }, 50); // 50мс - идеальная пауза для Smart TV
                 }
             });
         }
@@ -249,7 +250,7 @@
         }
     }
 
-    // Надёжный цикл: ждем полной загрузки ядра Lampa на ТВ
+    // Надёжный цикл загрузки
     var checkInterval = setInterval(function () {
         if (typeof Lampa !== 'undefined' && Lampa.SettingsApi && Lampa.Controller && Lampa.Select) {
             clearInterval(checkInterval);
