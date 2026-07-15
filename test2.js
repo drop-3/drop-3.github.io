@@ -1,18 +1,21 @@
 (function () {
     'use strict';
 
-    // 1. Хранилище
     function getSaves() {
         try { return JSON.parse(localStorage.getItem('lampa_my_torrents') || '[]'); } 
         catch(e) { return []; }
     }
 
-    // 2. КНОПКА: Максимально простая, без условий
     if (window.Lampa && window.Lampa.Select) {
         var old_show = Lampa.Select.show;
+        
         Lampa.Select.show = function(params) {
-            // Добавляем кнопку всегда, если есть массив items
-            if (params.items && Array.isArray(params.items)) {
+            // 1. Проверяем, есть ли в этом меню данные о торренте
+            // Мы ищем магнет или хэш в данных элемента или в самом списке
+            var hasTorrentData = (params.data && (params.data.magnet || params.data.hash || params.data.btih));
+            
+            // 2. Если нашли данные — добавляем кнопку (и только тогда!)
+            if (hasTorrentData) {
                 params.items.push({
                     title: '💾 Сохранить в Лампу',
                     action: 'my_save_action'
@@ -20,13 +23,12 @@
             }
 
             var old_onSelect = params.onSelect;
-            params.onSelect = function(a) {
-                if (a && a.action === 'my_save_action') {
-                    var act = Lampa.Activity.active() ? Lampa.Activity.active().activity : {};
-                    // Пытаемся достать данные из params.data или текущей активности
-                    var d = params.data || {};
-                    var magnet = d.magnet || act.magnet || '';
-                    var title = d.title || act.title || 'Сохраненный торрент';
+            params.onSelect = function(item) {
+                if (item && item.action === 'my_save_action') {
+                    // Берем данные прямо из контекста
+                    var d = params.data;
+                    var magnet = d.magnet || (d.hash ? 'magnet:?xt=urn:btih:' + d.hash : '');
+                    var title = d.title || 'Сохраненный торрент';
                     
                     if (magnet) {
                         var list = getSaves();
@@ -34,7 +36,7 @@
                             list.unshift({
                                 title: title,
                                 magnet: magnet,
-                                img: act.img || act.poster || '',
+                                img: d.img || d.poster || '',
                                 stat_string: '💾 Сохранено'
                             });
                             localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
@@ -43,29 +45,27 @@
                             if (Lampa.Noty) Lampa.Noty.show('⚠️ Уже есть!');
                         }
                     } else {
-                        if (Lampa.Noty) Lampa.Noty.show('❌ Не удалось получить ссылку');
+                        if (Lampa.Noty) Lampa.Noty.show('❌ Ошибка данных');
                     }
                 } else if (old_onSelect) {
-                    old_onSelect(a);
+                    old_onSelect(item);
                 }
             };
             return old_show(params);
         };
     }
 
-    // 3. ДАННЫЕ: Прямая подмена метода list
+    // Внедрение в список (без перехвата сети, чистое объединение массивов)
     var timer = setInterval(function() {
-        var TS = window.Lampa && (Lampa.Torrserve || Lampa.TorrServer);
+        var TS = window.Lampa && (Lampa.Torrserver || Lampa.TorrServer);
         if (TS && TS.list) {
             clearInterval(timer);
-            
             var old_list = TS.list;
             TS.list = function(onSuccess, onError) {
                 old_list(function(items) {
                     var saves = getSaves();
-                    // Добавляем наши сохранения в начало списка
-                    var result = saves.concat(items || []);
-                    onSuccess(result);
+                    // Склеиваем, если не пусто
+                    onSuccess(saves.concat(items || []));
                 }, onError);
             };
         }
