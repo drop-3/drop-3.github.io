@@ -81,3 +81,67 @@
     }
 })();
 /* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
+
+/* --- СТАРТ БЛОКА: Тест №3 - Вкладки в меню Торренты --- */
+(function () {
+    'use strict';
+
+    // Внедряемся в жизненный цикл активностей Лампы
+    Lampa.Listener.follow('activity', function (e) {
+        if (e.type === 'start' && e.component === 'torrents') {
+            // Ждем немного, пока прорисуется стандартный список
+            setTimeout(function() {
+                var activity = Lampa.Activity.active();
+                if (!activity) return;
+
+                // Добавляем переключатель вкладок (Tabs), если его еще нет
+                if (!$('.local-tabs').length) {
+                    var tabs = $('<div class="local-tabs" style="display: flex; justify-content: center; padding: 10px;">' +
+                                    '<button class="tab-btn active" style="margin: 0 10px; padding: 5px 15px;">TorrServe</button>' +
+                                    '<button class="tab-btn" style="margin: 0 10px; padding: 5px 15px;">Local</button>' +
+                                 '</div>');
+                    
+                    $('.full-start').prepend(tabs);
+
+                    // Логика переключения
+                    tabs.find('.tab-btn').on('click', function() {
+                        $('.tab-btn').removeClass('active');
+                        $(this).addClass('active');
+                        
+                        if ($(this).text() === 'Local') {
+                            showLocalTorrents();
+                        } else {
+                            location.reload(); // Простой способ вернуть стандартный вид
+                        }
+                    });
+                }
+            }, 500);
+        }
+    });
+
+    // Функция отображения сохраненных торрентов
+    function showLocalTorrents() {
+        var list = window.LocalTorrentStorage.get();
+        var container = $('.items-line'); // Стандартный контейнер Лампы
+        container.empty();
+
+        if (list.length === 0) {
+            container.append('<div class="empty" style="text-align: center; padding: 20px;">Список пуст</div>');
+            return;
+        }
+
+        list.forEach(function(item) {
+            var card = $('<div class="card" style="padding: 10px; border: 1px solid #333; margin: 5px; cursor: pointer;">' +
+                            '<div>' + item.movie_title + '</div>' +
+                            '<div style="font-size: 0.8em; color: #888;">' + item.magnet.substring(0, 20) + '...</div>' +
+                         '</div>');
+            
+            card.on('click', function() {
+                showNoty('Здесь будет меню управления: Воспроизвести/Удалить');
+            });
+            
+            container.append(card);
+        });
+    }
+})();
+/* --- КОНЕЦ БЛОКА: Тест №3 - Вкладки в меню Торренты --- */
