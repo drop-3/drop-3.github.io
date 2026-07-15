@@ -1,8 +1,8 @@
-/* --- СТАРТ БЛОКА: Тест #7 - Стабильный минималистичный плагин --- */
+/* --- СТАРТ БЛОКА: Тест #8 - Идеальная адаптация под пульт ТВ --- */
 (function () {
     'use strict';
 
-    // 1. Хранилище (LocalStorage)
+    // 1. Хранилище
     var Storage = {
         get: function() {
             try { return JSON.parse(localStorage.getItem('lampa_local_torrents') || '[]'); } 
@@ -25,7 +25,7 @@
         }
     };
 
-    // 2. Кнопка "Сохранить" в контекстном меню (работает нативно)
+    // 2. Кнопка в контекстном меню парсера
     if (window.Lampa && window.Lampa.Select) {
         var orig_show = Lampa.Select.show;
         Lampa.Select.show = function (params) {
@@ -65,73 +65,86 @@
         };
     }
 
-    // 3. Умный фоновый инжектор кнопки (без лагов и дубликатов)
+    // 3. Инжектор кнопки с МАГНИТОМ для пульта ТВ
     var showing_local = false;
 
     setInterval(function() {
         var active = window.Lampa && window.Lampa.Activity && window.Lampa.Activity.active();
         
-        // Если мы на экране торрентов
         if (active && (String(active.component).toLowerCase() === 'mytorrents' || String(active.component).toLowerCase() === 'torrents')) {
-            
-            // Если мы сейчас НЕ показываем наш локальный список
             if (!showing_local) {
                 var screen = $('.activity').last();
                 
-                // Если экрана еще нет или кнопка уже добавлена — ничего не делаем
                 if (screen.length > 0 && screen.find('.local-torrents-btn').length === 0) {
                     var list = Storage.get();
 
-                    // Создаем нативную кнопку-карточку
-                    var btn = $('<div class="selector card local-torrents-btn" style="padding: 15px; text-align: center; background: #222; margin: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; border: 2px solid #e50914; cursor: pointer;">' +
+                    // Обязательно ставим tabindex="0" и класс selector для ТВ-пульта
+                    var btn = $('<div class="selector card local-torrents-btn" tabindex="0" style="padding: 18px; text-align: center; background: #222; margin: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; border: 2px solid #e50914; cursor: pointer; transition: 0.2s; outline: none;">' +
                                 '📁 Сохраненные раздачи (' + list.length + ')' +
                                 '</div>');
                     
+                    // Реакция на фокус пульта (hover:focus - системное событие Лампы)
+                    btn.on('hover:focus focus', function() {
+                        $(this).css({ 'background': '#e50914', 'color': '#fff', 'transform': 'scale(1.02)', 'border-color': '#fff', 'box-shadow': '0 0 15px rgba(229,9,20,0.5)' });
+                    });
+                    btn.on('hover:empty blur', function() {
+                        $(this).css({ 'background': '#222', 'color': '#fff', 'transform': 'scale(1)', 'border-color': '#e50914', 'box-shadow': 'none' });
+                    });
+
                     btn.on('click', function() {
-                        showing_local = true; // Запрещаем инжектору перерисовывать кнопку
+                        showing_local = true;
                         showNativeList(screen, list);
                     });
 
-                    // Вставляем в тело экрана
                     var body = screen.find('.scroll__body, .activity__body').first();
                     if (body.length === 0) body = screen;
                     
                     body.prepend(btn);
                     
-                    // Обновляем пульт
-                    if (Lampa.Controller) Lampa.Controller.toggle('content');
+                    // МАГИЯ ДЛЯ ПУЛЬТА: Пересчитываем сетку и АВТОМАТИЧЕСКИ ставим фокус на нашу кнопку!
+                    if (window.Lampa && window.Lampa.Controller) {
+                        Lampa.Controller.collectionSet(screen.find('.selector'));
+                        Lampa.Controller.collectionFocus(btn[0]);
+                    }
                 }
             }
         } else {
-            // Если вышли из раздела торрентов — сбрасываем статус
             showing_local = false;
         }
     }, 500);
 
-    // 4. Отрисовка списка сохраненных раздач
+    // 4. Отрисовка списка с поддержкой ТВ-пульта
     function showNativeList(screen, list) {
         var body = screen.find('.scroll__body, .activity__body').first();
         if (body.length === 0) body = screen;
 
-        body.empty(); // Полностью очищаем экран от заглушек TorrServe и нашей кнопки
+        body.empty();
 
         if (list.length === 0) {
             body.append('<div style="text-align: center; padding: 50px; font-size: 20px; color: #888;">Список пуст. Сохраняйте раздачи в фильмах!</div>');
             return;
         }
 
-        var container = $('<div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;"></div>');
+        var container = $('<div style="padding: 15px; display: flex; flex-direction: column; gap: 12px;"></div>');
 
         list.slice().reverse().forEach(function(item) {
             var date_str = new Date(item.date).toLocaleDateString();
             
-            var card = $('<div class="selector card" style="padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">' +
+            var card = $('<div class="selector card" tabindex="0" style="padding: 18px; background: #1a1a1a; border-radius: 8px; border: 2px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; outline: none;">' +
                          '<div style="overflow: hidden; padding-right: 15px;">' +
-                             '<div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 5px;">' + (item.title || 'Без названия') + '</div>' +
-                             '<div style="font-size: 12px; color: #777;">Добавлено: ' + date_str + ' | ' + String(item.magnet).substring(0, 35) + '...</div>' +
+                             '<div style="font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 6px;">' + (item.title || 'Без названия') + '</div>' +
+                             '<div style="font-size: 14px; color: #888;">Добавлено: ' + date_str + ' | ' + String(item.magnet).substring(0, 35) + '...</div>' +
                          '</div>' +
-                         '<div style="color: #e50914; font-size: 24px; font-weight: bold;">⋮</div>' +
+                         '<div style="color: #e50914; font-size: 26px; font-weight: bold;">⋮</div>' +
                          '</div>');
+
+            // Подсветка карточек пультом ТВ
+            card.on('hover:focus focus', function() {
+                $(this).css({ 'border-color': '#e50914', 'transform': 'scale(1.02)', 'background': '#222' });
+            });
+            card.on('hover:empty blur', function() {
+                $(this).css({ 'border-color': '#333', 'transform': 'scale(1)', 'background': '#1a1a1a' });
+            });
 
             card.on('click', function() {
                 Lampa.Select.show({
@@ -153,7 +166,7 @@
                             else Lampa.Noty.show('ID фильма не был сохранен');
                         } else if (m.action === 'del') {
                             Storage.remove(item.magnet);
-                            showNativeList(screen, Storage.get()); // Мгновенно обновляем список
+                            showNativeList(screen, Storage.get());
                         }
                     }
                 });
@@ -164,8 +177,13 @@
 
         body.append(container);
         
-        if (Lampa.Controller) Lampa.Controller.toggle('content');
+        // Пересчитываем сетку для пульта и сразу ставим фокус на ПЕРВЫЙ фильм в списке!
+        if (window.Lampa && window.Lampa.Controller) {
+            Lampa.Controller.collectionSet(body.find('.selector'));
+            var first_card = body.find('.selector').first()[0];
+            if (first_card) Lampa.Controller.collectionFocus(first_card);
+        }
     }
 
 })();
-/* --- КОНЕЦ БЛОКА: Тест #7 - Стабильный минималистичный плагин --- */
+/* --- КОНЕЦ БЛОКА: Тест #8 - Идеальная адаптация под пульт ТВ --- */
