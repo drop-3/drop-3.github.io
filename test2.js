@@ -3,4 +3,4 @@ var thisInterval = setInterval(function(){
     Lampa.Activity.replace(Lampa.Activity.active());
     clearInterval(thisInterval);
   }
-}, 3000)
+}, 4000)
