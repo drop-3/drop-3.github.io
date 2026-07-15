@@ -1,4 +1,4 @@
-/* --- СТАРТ БЛОКА: Тест №1 - Добавление кнопки сохранения --- */
+/* --- СТАРТ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
 (function () {
     'use strict';
 
@@ -7,11 +7,10 @@
         if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
     }
 
-    // 2. Хранилище (LocalStorage)
+    // 2. Хранилище
     window.LocalTorrentStorage = {
         save: function(item) {
             var saved = this.get();
-            // Проверка на дубликат по magnet
             if (saved.find(function(t) { return t.magnet === item.magnet; })) {
                 showNoty('Уже сохранено!');
                 return;
@@ -33,20 +32,29 @@
         }
     };
 
-    // 3. Интеграция в контекстное меню
+    // 3. Улучшенный поиск данных (как в твоем рабочем коде)
+    function findMagnetInElement() {
+        var magnet = '';
+        var f = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
+        var d = f.data('injected_torrent_data') || f.data('element') || f.data('item') || f.data('torrent') || f.data('data');
+        
+        if (d) {
+            // Проверяем разные форматы хранения магнита
+            var hash = d.hash || d.info_hash || d.infoHash || d.btih;
+            if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
+            else if (d.magnet) magnet = d.magnet;
+            else if (typeof d === 'string' && d.indexOf('magnet:') === 0) magnet = d;
+        }
+        return magnet;
+    }
+
+    // 4. Интеграция
     if (window.Lampa && window.Lampa.Select) {
         var orig_show = Lampa.Select.show;
         Lampa.Select.show = function (params) {
-            // Пытаемся найти магнит-ссылку в данных
-            var magnet = '';
-            if (params.data && typeof params.data === 'object') {
-                var hash = params.data.hash || params.data.info_hash || params.data.infoHash || params.data.btih;
-                if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
-                else if (params.data.magnet) magnet = params.data.magnet;
-            }
+            var magnet = findMagnetInElement();
 
             if (magnet) {
-                // Добавляем наш пункт
                 params.items.push({
                     title: 'Сохранить в локальные',
                     save_magnet: magnet,
@@ -54,7 +62,6 @@
                     movie_title: (window.Lampa.Activity.active() ? window.Lampa.Activity.active().activity.title : 'Неизвестно')
                 });
 
-                // Перехват выбора
                 var orig_onSelect = params.onSelect;
                 params.onSelect = function (item) {
                     if (item && item.save_magnet) {
@@ -73,4 +80,4 @@
         };
     }
 })();
-/* --- КОНЕЦ БЛОКА: Тест №1 - Добавление кнопки сохранения --- */
+/* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
