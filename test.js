@@ -2,7 +2,7 @@
     'use strict';
 
     // ВРЕМЯ ЗАДЕРЖКИ В МИЛЛИСЕКУНДАХ (1500 = 1.5 секунды)
-    var delay_time = 5000; 
+    var delay_time = 3500; 
     
     var executed = false;
 
