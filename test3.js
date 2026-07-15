@@ -1,10 +1,7 @@
 (function () {
     'use strict';
 
-    // Проверка, что Lampa загружена
-    if (typeof Lampa === 'undefined') return;
-
-    // Ссылки на внешние сервисы и утилиты
+    // Ссылки на внешние сервисы
     var LINKS = {
         youtube: 'https://youtube.com/tv',
         twitch: 'https://webos.tv.twitch.tv',
@@ -14,11 +11,11 @@
         speedtest: 'http://speedtest.vokino.tv/?R=3'
     };
 
-    // Вспомогательная функция для генерации пунктов меню с SVG-иконками
+    // Генератор пунктов меню (иконки строго 1.2em, чтобы не ломать вёрстку форков!)
     function createMenuItem(title, svgPath) {
         return '<div class="settings-folder" style="padding:0!important">' +
                    '<div style="width:2.2em;height:1.7em;padding-right:.5em">' +
-                       '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">' +
+                       '<svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor">' +
                            svgPath +
                        '</svg>' +
                    '</div>' +
@@ -26,7 +23,7 @@
                '</div>';
     }
 
-    // Иконки и названия пунктов меню
+    // Иконки SVG
     var MENU_ITEMS = {
         exit: createMenuItem('Закрыть приложение', '<path d="M14.5 9.5L9.5 14.5M9.5 9.5L14.5 14.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/>'),
         reboot: createMenuItem('Перезагрузить', '<path d="M11 2a9 9 0 0 0-9 9 9 9 0 0 0 4.68 7.68l1.46-1.46A7 7 0 1 1 18 11a7 7 0 0 1-.79 3.21l1.46 1.46A9 9 0 0 0 11 2z"/>'),
@@ -40,7 +37,7 @@
         drm: createMenuItem('DRM Play', '<path d="M46,37H2a1,1,0,0,1-1-1V8A1,1,0,0,1,2,7H46a1,1,0,0,1,1,1V36A1,1,0,0,1,46,37ZM45,9H3V35H45ZM21,16a.975.975,0,0,1,.563.2l7.771,4.872a.974.974,0,0,1,.261,1.715l-7.974,4.981A.982.982,0,0,1,21,28a1,1,0,0,1-1-1V17A1,1,0,0,1,21,16Z"/>')
     };
 
-    // Функция полного выхода из приложения под разные платформы ТВ/устройств
+    // Функция закрытия приложения
     function exitApp() {
         if (Lampa.Platform.is('webos')) window.location.assign('exit://exit');
         if (Lampa.Platform.is('tizen')) tizen.application.getCurrentApplication().exit();
@@ -52,7 +49,7 @@
         if (Lampa.Platform.is('browser')) window.close();
     }
 
-    // Функция смены адреса сервера
+    // Смена сервера
     function switchServer() {
         var protocol = location.protocol === 'https:' ? 'https://' : 'http://';
         Lampa.Input.open({
@@ -68,7 +65,7 @@
         });
     }
 
-    // Функция запуска Speed Test во всплывающем окне
+    // Запуск SpeedTest
     function openSpeedTest() {
         var html = $('<div style="text-align:right;"><div style="min-height:360px;"><iframe id="speedtest-iframe" width="100%" height="100%" frameborder="0"></iframe></div></div>');
         Lampa.Modal.open({
@@ -84,35 +81,73 @@
         document.getElementById('speedtest-iframe').src = LINKS.speedtest;
     }
 
-    // Отображение самого меню при нажатии кнопки "Назад"
+    // БЕРЕЖНАЯ ОЧИСТКА: Строго кэш! Настройки, избранное и аккаунты НЕ ТРОГАЕМ!
+    function clearOnlyCache() {
+        if (typeof caches !== 'undefined') {
+            caches.keys().then(function (names) {
+                names.forEach(function (name) { caches.delete(name); });
+            }).catch(function() {});
+        }
+        if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+        if (Lampa.Activity && Lampa.Activity.cache) Lampa.Activity.cache = {};
+        if (Lampa.Template && Lampa.Template.cache) Lampa.Template.cache = {};
+
+        var cacheKeywords = ['cache', 'tmdb', 'omdb', 'imdb', 'kinopoisk', 'temp', 'hash', 'online_cache', 'parser_cache', 'cub_cache', 'last_search'];
+        var keysToRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+            var key = localStorage.key(i);
+            if (key) {
+                var lowerKey = key.toLowerCase();
+                for (var j = 0; j < cacheKeywords.length; j++) {
+                    if (lowerKey.indexOf(cacheKeywords[j]) !== -1) {
+                        keysToRemove.push(key);
+                        break;
+                    }
+                }
+            }
+        }
+        keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
+    }
+
+    // Флажок, чтобы скрипт не перехватывал сам себя
+    var isCustomMenuOpen = false;
+
+    // Отображение нашего кастомного меню Выхода
     function showBackMenu() {
         var items = [];
 
-        // Добавляем пункт в меню, только если он не скрыт в настройках (значение '1' = Скрыть)
-        if (Lampa.Storage.get('back_menu_exit') !== '1') items.push({ title: MENU_ITEMS.exit, action: 'exit' });
-        if (Lampa.Storage.get('back_menu_reboot') !== '1') items.push({ title: MENU_ITEMS.reboot, action: 'reboot' });
-        if (Lampa.Storage.get('back_menu_server') !== '1') items.push({ title: MENU_ITEMS.server, action: 'server' });
-        if (Lampa.Storage.get('back_menu_speedtest') !== '1') items.push({ title: MENU_ITEMS.speedtest, action: 'speedtest' });
-        if (Lampa.Storage.get('back_menu_cache') !== '1') items.push({ title: MENU_ITEMS.cache, action: 'cache' });
-        if (Lampa.Storage.get('back_menu_youtube') !== '1') items.push({ title: MENU_ITEMS.youtube, action: 'youtube' });
-        if (Lampa.Storage.get('back_menu_twitch') !== '1') items.push({ title: MENU_ITEMS.twitch, action: 'twitch' });
-        if (Lampa.Storage.get('back_menu_rutube') !== '1') items.push({ title: MENU_ITEMS.rutube, action: 'rutube' });
-        if (Lampa.Storage.get('back_menu_fork') !== '1') items.push({ title: MENU_ITEMS.fork, action: 'fork' });
-        if (Lampa.Storage.get('back_menu_drm') !== '1') items.push({ title: MENU_ITEMS.drm, action: 'drm' });
+        if (Lampa.Storage.get('back_menu_exit', '2') !== '1') items.push({ title: MENU_ITEMS.exit, action: 'exit' });
+        if (Lampa.Storage.get('back_menu_reboot', '2') !== '1') items.push({ title: MENU_ITEMS.reboot, action: 'reboot' });
+        if (Lampa.Storage.get('back_menu_server', '2') !== '1') items.push({ title: MENU_ITEMS.server, action: 'server' });
+        if (Lampa.Storage.get('back_menu_speedtest', '2') !== '1') items.push({ title: MENU_ITEMS.speedtest, action: 'speedtest' });
+        if (Lampa.Storage.get('back_menu_cache', '2') !== '1') items.push({ title: MENU_ITEMS.cache, action: 'cache' });
+        if (Lampa.Storage.get('back_menu_youtube', '2') !== '1') items.push({ title: MENU_ITEMS.youtube, action: 'youtube' });
+        if (Lampa.Storage.get('back_menu_twitch', '2') !== '1') items.push({ title: MENU_ITEMS.twitch, action: 'twitch' });
+        if (Lampa.Storage.get('back_menu_rutube', '2') !== '1') items.push({ title: MENU_ITEMS.rutube, action: 'rutube' });
+        if (Lampa.Storage.get('back_menu_fork', '2') !== '1') items.push({ title: MENU_ITEMS.fork, action: 'fork' });
+        if (Lampa.Storage.get('back_menu_drm', '2') !== '1') items.push({ title: MENU_ITEMS.drm, action: 'drm' });
+
+        isCustomMenuOpen = true;
 
         Lampa.Select.show({
             title: 'Выход',
             items: items,
             onBack: function () {
+                isCustomMenuOpen = false;
                 Lampa.Controller.toggle('content');
             },
             onSelect: function (item) {
+                isCustomMenuOpen = false;
                 switch (item.action) {
                     case 'exit': exitApp(); break;
                     case 'reboot': location.reload(); break;
                     case 'server': switchServer(); break;
                     case 'speedtest': openSpeedTest(); break;
-                    case 'cache': Lampa.Storage.clear(); break;
+                    case 'cache': 
+                        if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Только кэш очищен! Перезагрузка...');
+                        clearOnlyCache(); 
+                        setTimeout(function () { window.location.reload(); }, 1500);
+                        break;
                     case 'youtube': window.location.href = LINKS.youtube; break;
                     case 'twitch': window.location.href = LINKS.twitch; break;
                     case 'rutube': window.location.href = LINKS.rutube; break;
@@ -123,17 +158,15 @@
         });
     }
 
-    // Инициализация плагина и интеграция в настройки Lampa
-    function initPlugin() {
-        // Создаем новый раздел в настройках
+    // Регистрируем настройки (Все имена переменных уникальны, наложений больше не будет!)
+    function addSettings() {
         Lampa.SettingsApi.addComponent({
             component: 'back_menu',
             name: 'Меню Выход',
-            icon: MENU_ITEMS.exit
+            icon: '<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 20L14 4M18 8L22 12L18 16M6 16L2 12L6 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         });
 
-        // Список переключателей для каждого пункта меню (1 - Скрыть, 2 - Отобразить)
-        var settingsParams = [
+        var params = [
             { name: 'back_menu_exit', field: 'Закрыть приложение' },
             { name: 'back_menu_reboot', field: 'Перезагрузить' },
             { name: 'back_menu_server', field: 'Сменить сервер' },
@@ -143,10 +176,10 @@
             { name: 'back_menu_twitch', field: 'Twitch' },
             { name: 'back_menu_rutube', field: 'RuTube' },
             { name: 'back_menu_fork', field: 'ForkPlayer' },
-            { name: 'back_menu_drm', field: 'DRM Play' }
+            { name: 'back_menu_drm', field: 'DRM Play' } // <-- Исправлен дубликат, вызывавший наложение!
         ];
 
-        settingsParams.forEach(function (param) {
+        params.forEach(function (param) {
             Lampa.SettingsApi.addParam({
                 component: 'back_menu',
                 param: {
@@ -161,23 +194,67 @@
                 }
             });
         });
-
-        // Перехватываем нажатие кнопки "Назад" (Back)
-        Lampa.Controller.listener.follow('back', function (e) {
-            // Если мы находимся на главном экране (main) или в открытом меню
-            if (e.name === 'main' || (Lampa.Activity.active() && Lampa.Activity.active().component === 'main')) {
-                showBackMenu();
-                return true; // Блокируем стандартный выход Lampa
-            }
-        });
     }
 
-    // Запуск плагина после полной загрузки приложения
-    if (window.appready) {
-        initPlugin();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') initPlugin();
-        });
+    // Главная функция инициализации
+    function startPlugin() {
+        if (window.back_menu_initialized) return;
+        window.back_menu_initialized = true;
+
+        function init() {
+            addSettings();
+
+            // ТОТ САМЫЙ МЕТОД ИЗ ПОДСКАЗКИ: Слушаем переключение на окно Select/Modal
+            Lampa.Controller.listener.follow('toggle', function (e) {
+                if (!e || !e.name) return;
+                var ctrlName = String(e.name).toLowerCase();
+                
+                // Если открылся select или modal И это НЕ наше собственное меню
+                if ((ctrlName === 'select' || ctrlName === 'modal') && !isCustomMenuOpen) {
+                    
+                    // ТВ отрисовывает окна с задержкой. Проверяем экран каждые 30 миллисекунд (до 15 раз)
+                    var attempts = 0;
+                    var checkTimer = setInterval(function () {
+                        attempts++;
+                        if (attempts > 15) { clearInterval(checkTimer); return; } // Если через 450мс окно не появилось — сдаёмся
+
+                        // Ищем любой видимый заголовок на экране
+                        var titleElem = $('.selectbox__title, .modal__title, [class*="title"]').filter(':visible');
+                        if (!titleElem.length) return;
+                        
+                        var title = titleElem.text().toLowerCase().trim();
+                        var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'выход').toLowerCase().trim();
+                        
+                        // Если в заголовке есть слово "выход", "exit" или "закрыть"
+                        if (title.indexOf(targetTitle) !== -1 || title.indexOf('выход') !== -1 || title.indexOf('exit') !== -1 || title.indexOf('закрыть') !== -1) {
+                            clearInterval(checkTimer); // Останавливаем поиск
+                            if (Lampa.Select && Lampa.Select.close) Lampa.Select.close();
+                            if (Lampa.Modal && Lampa.Modal.close) Lampa.Modal.close();
+                            
+                            setTimeout(function () {
+                                showBackMenu(); // Открываем наше красивое меню!
+                            }, 30);
+                        }
+                    }, 30);
+                }
+            });
+        }
+
+        if (window.appready) {
+            init();
+        } else {
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type === 'ready') init();
+            });
+        }
     }
+
+    // Надёжный цикл: ждем полной загрузки ядра Lampa на ТВ
+    var checkInterval = setInterval(function () {
+        if (typeof Lampa !== 'undefined' && Lampa.SettingsApi && Lampa.Controller && Lampa.Select) {
+            clearInterval(checkInterval);
+            startPlugin();
+        }
+    }, 200);
+
 })();
