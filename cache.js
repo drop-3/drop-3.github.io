@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    // Функция безопасной очистки ТОЛЬКО кэша и мусора
+    // Функция безопасной очистки кэша и мусора
     function clearAppCache() {
         if (window.Lampa && Lampa.Noty && Lampa.Noty.show) {
             Lampa.Noty.show('Кэш очищен. Перезагрузка...');
