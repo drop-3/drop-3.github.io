@@ -38,14 +38,14 @@
             // Делаем новый слепок и сравниваем со стартовым
             var current_snapshot = getDataSnapshot();
 
-            // ЕСЛИ ПАМЯТЬ ИЗМЕНИЛАСЬ — ПРИШЛА СИНХРОНИЗАЦИЯ!
+            // если память изменилась - пришли данные
             if (current_snapshot !== initial_snapshot) {
-                clearInterval(watcher); // Мгновенно убиваем таймер, он больше не нужен
+                clearInterval(watcher); // убивает таймер, он больше не нужен
                 
                 var current_active = Lampa.Activity.active();
                 var history_length = Lampa.Activity.history ? Lampa.Activity.history.length : 1;
                 
-                // ПРЕДОХРАНИТЕЛЬ: Обновляем экран, ТОЛЬКО если пользователь всё ещё на стартовой странице
+                // ПРЕДОХРАНИТЕЛЬ: Обновляет экран, ТОЛЬКО если пользователь всё ещё на стартовой странице
                 if (current_active && history_length <= 1) {
                     console.log('SyncRefresh: Синхронизация пришла за ' + (elapsed/1000) + ' сек. Обновляем экран!');
                     Lampa.Activity.replace(current_active);
@@ -54,7 +54,7 @@
                 }
             }
 
-            // Если прошло 10 секунд, а ничего не изменилось — прекращаем слежку
+            // Если прошло 10 секунд, а ничего не изменилось — прекращает слежку
             if (elapsed >= max_wait_time) {
                 clearInterval(watcher);
                 console.log('SyncRefresh: Время истекло. Новых данных нет или история уже актуальна.');
@@ -63,7 +63,7 @@
         }, check_interval);
     }
 
-    // БРОНЕЖИЛЕТ: Надежный цикл проверки полной загрузки интерфейса Лампы
+    // БРОНЕЖИЛЕТ: цикл проверки полной загрузки интерфейса Лампы
     function checkLampaReady() {
         if (window.appready) {
             init();
