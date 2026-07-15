@@ -82,7 +82,7 @@
 })();
 /* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
 
-/* --- СТАРТ БЛОКА: Тест #3.4 - Вкладки и список для экрана mytorrents --- */
+/* --- СТАРТ БЛОКА: Тест #3.5 - Таран (Гарантированная вставка вкладок) --- */
 (function () {
     'use strict';
 
@@ -90,78 +90,72 @@
         if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
     }
 
-    // Отслеживаем запуск именно экрана 'mytorrents'
-    Lampa.Listener.follow('activity', function (e) {
-        if (e.type === 'start' && String(e.component).toLowerCase() === 'mytorrents') {
-            
-            // Ждем 1.5 секунды для полной отрисовки экрана Лампой
-            setTimeout(function() {
-                var active_screen = $('.activity.active .activity__body');
-                if (active_screen.length === 0) active_screen = $('.activity.active');
-
-                // Проверяем, не создали ли мы уже вкладки
-                if (active_screen.length > 0 && $('.local-tabs').length === 0) {
-                    
-                    showNoty('Загружаем сохраненные торренты...');
-
-                    // Создаем панель вкладок
-                    var tabs = $('<div class="local-tabs" style="display: flex; justify-content: center; padding: 15px; margin-bottom: 15px; background: rgba(0,0,0,0.3); border-bottom: 1px solid #333; z-index: 10;">' +
-                                    '<button class="tab-btn active" data-tab="ts" style="margin: 0 10px; padding: 10px 25px; background: #e50914; color: #fff; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">TorrServe</button>' +
-                                    '<button class="tab-btn" data-tab="local" style="margin: 0 10px; padding: 10px 25px; background: #333; color: #fff; border: 1px solid #555; border-radius: 5px; font-size: 16px; cursor: pointer;">Local</button>' +
-                                 '</div>');
-                    
-                    // Вставляем вкладки в самый верх экрана
-                    active_screen.prepend(tabs);
-
-                    // Обработка кликов по вкладкам
-                    tabs.find('.tab-btn').on('click', function() {
-                        var tab = $(this).data('tab');
-                        
-                        // Меняем оформление кнопок
-                        tabs.find('.tab-btn').css({ background: '#333', border: '1px solid #555' });
-                        $(this).css({ background: '#e50914', border: 'none' });
-
-                        if (tab === 'local') {
-                            // Прячем всё содержимое экрана, кроме наших вкладок
-                            active_screen.children().not('.local-tabs').hide();
-                            showLocalList(active_screen);
-                        } else {
-                            // Удаляем наш локальный список и возвращаем видимость стандартным элементам
-                            $('.local-torrents-list').remove();
-                            active_screen.children().show();
-                        }
-                    });
-                }
-            }, 1500); 
-        }
-    });
-
-    // Функция отрисовки нашего списка
-    function showLocalList(container) {
-        $('.local-torrents-list').remove(); // Очищаем старый, если был
+    // Запускаем постоянный таймер (бульдозер), который каждые 500 мс проверяет, где мы находимся
+    setInterval(function() {
+        var active = window.Lampa && window.Lampa.Activity && window.Lampa.Activity.active();
         
-        var list_container = $('<div class="local-torrents-list" style="padding: 10px 30px; display: flex; flex-wrap: wrap; gap: 15px;"></div>');
-        var list = window.LocalTorrentStorage.get();
+        // Проверяем, что мы сейчас именно на экране mytorrents (или torrents)
+        if (active && (String(active.component).toLowerCase() === 'mytorrents' || String(active.component).toLowerCase() === 'torrents')) {
+            
+            // Берем весь текущий видимый экран Лампы
+            var screen = $('.activity.active');
+            
+            // Если экран существует, а наших кнопок на нем еще нет — вбиваем их туда!
+            if (screen.length > 0 && screen.find('.local-tabs').length === 0) {
+                
+                showNoty('Вставляем вкладки Local...');
 
-        if (list.length === 0) {
-            list_container.append('<div style="width: 100%; text-align: center; padding: 50px; font-size: 20px; color: #888;">Список сохраненных торрентов пуст</div>');
-        } else {
-            // Выводим карточки (новые сверху)
-            list.slice().reverse().forEach(function(item) {
-                var date_str = new Date(item.date).toLocaleDateString();
-                var card = $('<div class="local-card" style="flex: 1 1 300px; background: #1a1a1a; border: 1px solid #333; padding: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s;">' +
-                                '<div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 8px;">' + item.movie_title + '</div>' +
-                                '<div style="font-size: 12px; color: #888; margin-bottom: 5px;">Добавлено: ' + date_str + '</div>' +
-                                '<div style="font-size: 13px; color: #aaa; word-break: break-all; background: #111; padding: 8px; border-radius: 4px;">' + item.magnet.substring(0, 40) + '...</div>' +
+                // Создаем панель кнопок с максимальным приоритетом (z-index)
+                var tabs = $('<div class="local-tabs" style="width: 100%; display: flex; justify-content: center; padding: 20px; background: #111; border-bottom: 2px solid #e50914; z-index: 99999; position: relative;">' +
+                                '<button class="tab-btn active" data-tab="ts" style="margin: 0 15px; padding: 12px 30px; background: #e50914; color: #fff; border: none; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer;">TorrServe</button>' +
+                                '<button class="tab-btn" data-tab="local" style="margin: 0 15px; padding: 12px 30px; background: #222; color: #fff; border: 2px solid #777; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer;">Local</button>' +
                              '</div>');
                 
-                // Эффект наведения (фокус)
-                card.on('mouseenter', function() { $(this).css('border-color', '#e50914'); });
-                card.on('mouseleave', function() { $(this).css('border-color', '#333'); });
+                // Вставляем в самую верхнюю точку активного экрана
+                screen.prepend(tabs);
 
-                // Клик по карточке (пока заглушка для будущего меню из 4 пунктов)
+                // Логика нажатий на кнопки
+                tabs.find('.tab-btn').on('click', function() {
+                    var tab = $(this).data('tab');
+                    
+                    tabs.find('.tab-btn').css({ background: '#222', border: '2px solid #777' });
+                    $(this).css({ background: '#e50914', border: 'none' });
+
+                    if (tab === 'local') {
+                        // Скрываем всё стандартное содержимое экрана Лампы (заглушку и кнопки обновления)
+                        screen.children().not('.local-tabs').hide();
+                        showLocalList(screen);
+                    } else {
+                        // Удаляем наш список и возвращаем стандартный экран TorrServe
+                        screen.find('.local-torrents-list').remove();
+                        screen.children().show();
+                    }
+                });
+            }
+        }
+    }, 500);
+
+    // Функция отрисовки списка сохраненных карточек
+    function showLocalList(container) {
+        container.find('.local-torrents-list').remove();
+        
+        var list_container = $('<div class="local-torrents-list" style="width: 100%; padding: 30px; display: flex; flex-wrap: wrap; gap: 20px; overflow-y: auto; max-height: 80vh;"></div>');
+        var list = window.LocalTorrentStorage ? window.LocalTorrentStorage.get() : [];
+
+        if (list.length === 0) {
+            list_container.append('<div style="width: 100%; text-align: center; padding: 50px; font-size: 24px; color: #aaa;">Список сохраненных торрентов пуст</div>');
+        } else {
+            // Отрисовываем сохраненные раздачи (от новых к старым)
+            list.slice().reverse().forEach(function(item) {
+                var date_str = new Date(item.date).toLocaleDateString();
+                var card = $('<div style="flex: 1 1 350px; background: #1a1a1a; border: 2px solid #444; padding: 20px; border-radius: 10px; cursor: pointer; transition: 0.2s;">' +
+                                '<div style="font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px;">' + (item.movie_title || 'Без названия') + '</div>' +
+                                '<div style="font-size: 14px; color: #888; margin-bottom: 10px;">Добавлено: ' + date_str + '</div>' +
+                                '<div style="font-size: 12px; color: #666; background: #0d0d0d; padding: 10px; border-radius: 6px; word-break: break-all;">' + String(item.magnet).substring(0, 50) + '...</div>' +
+                             '</div>');
+                
                 card.on('click', function() {
-                    showNoty('Скоро здесь откроется меню управления!');
+                    showNoty('Следующий шаг: прикручиваем меню из 4 пунктов!');
                 });
 
                 list_container.append(card);
@@ -171,4 +165,4 @@
         container.append(list_container);
     }
 })();
-/* --- КОНЕЦ БЛОКА: Тест #3.4 - Вкладки и список для экрана mytorrents --- */
+/* --- КОНЕЦ БЛОКА: Тест #3.5 - Таран (Гарантированная вставка вкладок) --- */
