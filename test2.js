@@ -1,78 +1,49 @@
 (function () {
     'use strict';
 
+    // ВРЕМЯ ЗАДЕРЖКИ (в миллисекундах):
+    var phone_delay = 1500; // Для смартфонов и ПК (1.5 секунды)
+    var tv_delay    = 4500; // Для телевизоров и приставок (4.5 секунды)
+    
     var executed = false;
-    var max_wait_time = 10000; // Максимальное время слежки: 10 секунд (если инет отвалился)
-    var check_interval = 500;  // Шаг проверки памяти: каждые 0.5 секунды
-
-    // Базы данных Лампы, куда пишется история просмотров
-    var keys_to_watch = ['history', 'history_watch', 'online_view', 'favorite', 'torrents_history'];
-
-    // Функция: делает текстовый "слепок" (фотографию) текущей истории в памяти
-    function getDataSnapshot() {
-        var snapshot = '';
-        for (var i = 0; i < keys_to_watch.length; i++) {
-            snapshot += JSON.stringify(Lampa.Storage.get(keys_to_watch[i], ''));
-        }
-        return snapshot;
-    }
 
     function init() {
-        // логика запустится строго 1 раз за сеанс
         if (executed) return;
         executed = true;
 
-        var active = Lampa.Activity.active();
-        if (!active) return;
+        // Запоминаем стартовую страницу, которая открылась при запуске
+        var start_page = Lampa.Activity.active();
+        if (!start_page) return;
 
-        // 1. Делаем стартовую фотографию памяти при запуске
-        var initial_snapshot = getDataSnapshot();
-        var elapsed = 0;
+        // Определяем тип устройства (Телевизор/Приставка или Смартфон/ПК)
+        var is_tv = Lampa.Platform.tv() || /tv|tizen|webos|bravia|box|shield/i.test(navigator.userAgent.toLowerCase());
+        var delay = is_tv ? tv_delay : phone_delay;
 
-        console.log('SyncRefresh: Запущен умный наблюдатель синхронизации...');
+        console.log('SyncRefresh: Устройство:', is_tv ? 'ТВ/Приставка' : 'Смартфон', '| Задержка:', delay, 'мс');
 
-        // 2. циклическая проверка в фоне
-        var watcher = setInterval(function() {
-            elapsed += check_interval;
+        // Запускаем таймер
+        setTimeout(function() {
+            var current_page = Lampa.Activity.active();
 
-            // Делаем новый слепок и сравниваем со стартовым
-            var current_snapshot = getDataSnapshot();
-
-            // если память изменилась - пришли данные
-            if (current_snapshot !== initial_snapshot) {
-                clearInterval(watcher); // убивает таймер, он больше не нужен
-                
-                var current_active = Lampa.Activity.active();
-                var history_length = Lampa.Activity.history ? Lampa.Activity.history.length : 1;
-                
-                // ПРЕДОХРАНИТЕЛЬ: Обновляет экран, ТОЛЬКО если пользователь всё ещё на стартовой странице
-                if (current_active && history_length <= 1) {
-                    console.log('SyncRefresh: Синхронизация пришла за ' + (elapsed/1000) + ' сек. Обновляем экран!');
-                    Lampa.Activity.replace(current_active);
-                } else {
-                    console.log('SyncRefresh: Данные обновлены в фоне, но пользователь уже ушел в каталог. Перерисовка экрана отменена, чтобы не мешать.');
-                }
+            // ПРЕДОХРАНИТЕЛЬ: Обновляем только если пользователь всё ещё на стартовой странице
+            if (current_page === start_page) {
+                console.log('SyncRefresh: Время пришло, перерисовываем страницу...');
+                Lampa.Activity.replace(start_page);
+            } else {
+                console.log('SyncRefresh: Пользователь ушел с главной страницы, обновление отменено.');
             }
-
-            // Если прошло 10 секунд, а ничего не изменилось — прекращает слежку
-            if (elapsed >= max_wait_time) {
-                clearInterval(watcher);
-                console.log('SyncRefresh: Время истекло. Новых данных нет или история уже актуальна.');
-            }
-
-        }, check_interval);
+        }, delay);
     }
 
-    // БРОНЕЖИЛЕТ: цикл проверки полной загрузки интерфейса Лампы
+    // Надежный цикл ожидания загрузки интерфейса (для форков)
     function checkLampaReady() {
         if (window.appready) {
             init();
         } else {
-            setTimeout(checkLampaReady, 250); // Ждем четверть секунды и спрашиваем снова
+            setTimeout(checkLampaReady, 250);
         }
     }
 
-    // Старт работы плагина
     checkLampaReady();
 
 })();
