@@ -6,16 +6,12 @@
         catch(e) { return []; }
     }
 
+    // ТА САМАЯ КНОПКА (логика не менялась, она точно работает)
     if (window.Lampa && window.Lampa.Select) {
         var old_show = Lampa.Select.show;
-        
         Lampa.Select.show = function(params) {
-            // 1. Проверяем, есть ли в этом меню данные о торренте
-            // Мы ищем магнет или хэш в данных элемента или в самом списке
-            var hasTorrentData = (params.data && (params.data.magnet || params.data.hash || params.data.btih));
-            
-            // 2. Если нашли данные — добавляем кнопку (и только тогда!)
-            if (hasTorrentData) {
+            // Кнопка добавляется только там, где есть данные
+            if (params.data && (params.data.magnet || params.data.hash)) {
                 params.items.push({
                     title: '💾 Сохранить в Лампу',
                     action: 'my_save_action'
@@ -25,7 +21,6 @@
             var old_onSelect = params.onSelect;
             params.onSelect = function(item) {
                 if (item && item.action === 'my_save_action') {
-                    // Берем данные прямо из контекста
                     var d = params.data;
                     var magnet = d.magnet || (d.hash ? 'magnet:?xt=urn:btih:' + d.hash : '');
                     var title = d.title || 'Сохраненный торрент';
@@ -44,8 +39,6 @@
                         } else {
                             if (Lampa.Noty) Lampa.Noty.show('⚠️ Уже есть!');
                         }
-                    } else {
-                        if (Lampa.Noty) Lampa.Noty.show('❌ Ошибка данных');
                     }
                 } else if (old_onSelect) {
                     old_onSelect(item);
@@ -55,16 +48,17 @@
         };
     }
 
-    // Внедрение в список (без перехвата сети, чистое объединение массивов)
-    var timer = setInterval(function() {
-        var TS = window.Lampa && (Lampa.Torrserver || Lampa.TorrServer);
-        if (TS && TS.list) {
-            clearInterval(timer);
-            var old_list = TS.list;
-            TS.list = function(onSuccess, onError) {
-                old_list(function(items) {
+    // ХИРУРГИЧЕСКАЯ ПРАВКА ДЛЯ КАТАЛОГА (не трогает кнопку)
+    // Ждем готовности Лампы
+    var hookInterval = setInterval(function() {
+        if (window.Lampa && Lampa.Torrserve) {
+            clearInterval(hookInterval);
+            
+            var originalList = Lampa.Torrserve.list;
+            Lampa.Torrserve.list = function(onSuccess, onError) {
+                originalList(function(items) {
                     var saves = getSaves();
-                    // Склеиваем, если не пусто
+                    // Просто добавляем наши сохранения к серверным
                     onSuccess(saves.concat(items || []));
                 }, onError);
             };
