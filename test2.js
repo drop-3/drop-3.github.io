@@ -82,74 +82,40 @@
 })();
 /* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
 
-/* --- СТАРТ БЛОКА: Тест #3.2 - Исправленная вставка вкладок --- */
+/* --- СТАРТ БЛОКА: Тест #3.3 - Шпион для поиска имени экрана --- */
 (function () {
     'use strict';
 
-    // Слушаем открытие раздела торрентов
-    Lampa.Listener.follow('activity', function (e) {
-        if (e.type === 'start' && e.component === 'torrents') {
-            
-            // Ждем 1.5 секунды, чтобы Лампа точно прорисовала интерфейс
-            setTimeout(function() {
-                // Пытаемся найти контейнер, где обычно отображаются торренты
-                var container = $('.full-start');
-                
-                // Проверка: нашли ли мы экран Торрентов
-                if (container.length > 0) {
-                    // Маячок - если видишь это уведомление, значит плагин "увидел" раздел
-                    showNoty('Раздел Торренты обнаружен!');
+    function showNoty(msg) {
+        if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
+    }
 
-                    // Если наши кнопки еще не добавлены
+    // Слушаем запуск ЛЮБОГО экрана (activity) в Лампе
+    Lampa.Listener.follow('activity', function (e) {
+        if (e.type === 'start') {
+            // Выводим системное имя экрана на ТВ
+            showNoty('Имя экрана: ' + e.component);
+            console.log('Открыт экран:', e.component);
+
+            // На случай, если в имени есть слово torrent, file, my или ts — пробуем вставить кнопки сразу
+            var name = String(e.component).toLowerCase();
+            if (name.indexOf('torrent') !== -1 || name.indexOf('file') !== -1 || name.indexOf('ts') !== -1) {
+                setTimeout(function() {
                     if ($('.local-tabs').length === 0) {
-                        var tabs = $('<div class="local-tabs" style="display: flex; justify-content: center; padding: 20px; background: rgba(0,0,0,0.2);">' +
-                                        '<button class="tab-btn active" style="margin: 0 10px; padding: 10px 20px; background: #333; color: #fff; border: 1px solid #555; border-radius: 5px;">TorrServe</button>' +
-                                        '<button class="tab-btn" style="margin: 0 10px; padding: 10px 20px; background: #e50914; color: #fff; border: none; border-radius: 5px;">Local</button>' +
+                        // Ищем активный экран и вставляем кнопки туда
+                        var active_screen = $('.activity.active .activity__body, .activity.active, .full-start, .items-line').first();
+                        
+                        var tabs = $('<div class="local-tabs" style="display: flex; justify-content: center; padding: 20px; z-index: 9999; position: relative;">' +
+                                        '<button style="margin: 0 10px; padding: 10px 20px; background: #333; color: #fff; border: 2px solid #fff; border-radius: 5px; font-size: 16px;">TorrServe</button>' +
+                                        '<button style="margin: 0 10px; padding: 10px 20px; background: #e50914; color: #fff; border: none; border-radius: 5px; font-size: 16px;">Local</button>' +
                                      '</div>');
                         
-                        container.prepend(tabs);
-
-                        tabs.find('.tab-btn').on('click', function() {
-                            var text = $(this).text();
-                            if (text === 'Local') {
-                                showLocalTorrents();
-                            } else {
-                                // Если нажали TorrServe, просто обновляем страницу, чтобы вернуть стандартный вид
-                                location.reload();
-                            }
-                        });
+                        active_screen.prepend(tabs);
+                        showNoty('Кнопки добавлены в: ' + e.component);
                     }
-                }
-            }, 1500); 
+                }, 1500);
+            }
         }
     });
-
-    function showLocalTorrents() {
-        var list = window.LocalTorrentStorage.get();
-        // Пытаемся очистить текущий список
-        var container = $('.items-line');
-        container.empty();
-        
-        // Если контейнер .items-line не найден, ищем другой
-        if (container.length === 0) container = $('.full-start');
-
-        if (list.length === 0) {
-            container.append('<div style="text-align: center; padding: 50px;">Список локальных торрентов пуст</div>');
-            return;
-        }
-
-        list.forEach(function(item) {
-            var card = $('<div style="padding: 15px; margin: 10px; background: #222; border-radius: 8px; cursor: pointer;">' +
-                            '<div style="font-size: 18px; font-weight: bold;">' + item.movie_title + '</div>' +
-                            '<div style="color: #aaa; font-size: 14px;">Magnet: ' + item.magnet.substring(0, 30) + '...</div>' +
-                         '</div>');
-            
-            card.on('click', function() {
-                showNoty('Меню управления появится тут');
-            });
-            
-            container.append(card);
-        });
-    }
 })();
-/* --- КОНЕЦ БЛОКА: Тест #3.2 - Исправленная вставка вкладок --- */
+/* --- КОНЕЦ БЛОКА: Тест #3.3 - Шпион для поиска имени экрана --- */
