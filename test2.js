@@ -1,8 +1,8 @@
-/* --- СТАРТ БЛОКА: Тест #8 - Идеальная адаптация под пульт ТВ --- */
+/* --- СТАРТ БЛОКА: Тест #9 - Перехват источника данных --- */
 (function () {
     'use strict';
 
-    // 1. Хранилище
+    // 1. Хранилище (LocalStorage)
     var Storage = {
         get: function() {
             try { return JSON.parse(localStorage.getItem('lampa_local_torrents') || '[]'); } 
@@ -11,21 +11,16 @@
         save: function(item) {
             var list = this.get();
             if (list.some(function(t) { return t.magnet === item.magnet; })) {
-                Lampa.Noty.show('Уже сохранено!');
+                if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Уже сохранено!');
                 return;
             }
             list.push(item);
             localStorage.setItem('lampa_local_torrents', JSON.stringify(list));
-            Lampa.Noty.show('Сохранено в локальные!');
-        },
-        remove: function(magnet) {
-            var list = this.get().filter(function(t) { return t.magnet !== magnet; });
-            localStorage.setItem('lampa_local_torrents', JSON.stringify(list));
-            Lampa.Noty.show('Удалено из сохраненных!');
+            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Сохранено в локальные!');
         }
     };
 
-    // 2. Кнопка в контекстном меню парсера
+    // 2. Кнопка "Сохранить" в контекстном меню (уже проверенная и рабочая)
     if (window.Lampa && window.Lampa.Select) {
         var orig_show = Lampa.Select.show;
         Lampa.Select.show = function (params) {
@@ -55,6 +50,7 @@
                         Storage.save({
                             title: item.title_film,
                             magnet: item.magnet,
+                            hash: item.magnet ? item.magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1') : '',
                             id: item.id_film,
                             date: Date.now()
                         });
@@ -65,125 +61,52 @@
         };
     }
 
-    // 3. Инжектор кнопки с МАГНИТОМ для пульта ТВ
-    var showing_local = false;
+    // 3. ТОТ САМЫЙ НАМЁК: Перехватываем данные, которые раздел тянет с ТоррСервера!
+    function injectLocalTorrents(server_items) {
+        var local = Storage.get();
+        if (!local || local.length === 0) return server_items || [];
 
-    setInterval(function() {
-        var active = window.Lampa && window.Lampa.Activity && window.Lampa.Activity.active();
-        
-        if (active && (String(active.component).toLowerCase() === 'mytorrents' || String(active.component).toLowerCase() === 'torrents')) {
-            if (!showing_local) {
-                var screen = $('.activity').last();
-                
-                if (screen.length > 0 && screen.find('.local-torrents-btn').length === 0) {
-                    var list = Storage.get();
-
-                    // Обязательно ставим tabindex="0" и класс selector для ТВ-пульта
-                    var btn = $('<div class="selector card local-torrents-btn" tabindex="0" style="padding: 18px; text-align: center; background: #222; margin: 15px; border-radius: 8px; font-size: 20px; font-weight: bold; border: 2px solid #e50914; cursor: pointer; transition: 0.2s; outline: none;">' +
-                                '📁 Сохраненные раздачи (' + list.length + ')' +
-                                '</div>');
-                    
-                    // Реакция на фокус пульта (hover:focus - системное событие Лампы)
-                    btn.on('hover:focus focus', function() {
-                        $(this).css({ 'background': '#e50914', 'color': '#fff', 'transform': 'scale(1.02)', 'border-color': '#fff', 'box-shadow': '0 0 15px rgba(229,9,20,0.5)' });
-                    });
-                    btn.on('hover:empty blur', function() {
-                        $(this).css({ 'background': '#222', 'color': '#fff', 'transform': 'scale(1)', 'border-color': '#e50914', 'box-shadow': 'none' });
-                    });
-
-                    btn.on('click', function() {
-                        showing_local = true;
-                        showNativeList(screen, list);
-                    });
-
-                    var body = screen.find('.scroll__body, .activity__body').first();
-                    if (body.length === 0) body = screen;
-                    
-                    body.prepend(btn);
-                    
-                    // МАГИЯ ДЛЯ ПУЛЬТА: Пересчитываем сетку и АВТОМАТИЧЕСКИ ставим фокус на нашу кнопку!
-                    if (window.Lampa && window.Lampa.Controller) {
-                        Lampa.Controller.collectionSet(screen.find('.selector'));
-                        Lampa.Controller.collectionFocus(btn[0]);
-                    }
-                }
-            }
-        } else {
-            showing_local = false;
-        }
-    }, 500);
-
-    // 4. Отрисовка списка с поддержкой ТВ-пульта
-    function showNativeList(screen, list) {
-        var body = screen.find('.scroll__body, .activity__body').first();
-        if (body.length === 0) body = screen;
-
-        body.empty();
-
-        if (list.length === 0) {
-            body.append('<div style="text-align: center; padding: 50px; font-size: 20px; color: #888;">Список пуст. Сохраняйте раздачи в фильмах!</div>');
-            return;
-        }
-
-        var container = $('<div style="padding: 15px; display: flex; flex-direction: column; gap: 12px;"></div>');
-
-        list.slice().reverse().forEach(function(item) {
-            var date_str = new Date(item.date).toLocaleDateString();
-            
-            var card = $('<div class="selector card" tabindex="0" style="padding: 18px; background: #1a1a1a; border-radius: 8px; border: 2px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; outline: none;">' +
-                         '<div style="overflow: hidden; padding-right: 15px;">' +
-                             '<div style="font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 6px;">' + (item.title || 'Без названия') + '</div>' +
-                             '<div style="font-size: 14px; color: #888;">Добавлено: ' + date_str + ' | ' + String(item.magnet).substring(0, 35) + '...</div>' +
-                         '</div>' +
-                         '<div style="color: #e50914; font-size: 26px; font-weight: bold;">⋮</div>' +
-                         '</div>');
-
-            // Подсветка карточек пультом ТВ
-            card.on('hover:focus focus', function() {
-                $(this).css({ 'border-color': '#e50914', 'transform': 'scale(1.02)', 'background': '#222' });
-            });
-            card.on('hover:empty blur', function() {
-                $(this).css({ 'border-color': '#333', 'transform': 'scale(1)', 'background': '#1a1a1a' });
-            });
-
-            card.on('click', function() {
-                Lampa.Select.show({
-                    title: item.title || 'Управление',
-                    items: [
-                        { title: '▶ Воспроизвести', action: 'play' },
-                        { title: '🎬 Открыть карточку фильма', action: 'card' },
-                        { title: '🗑 Удалить из сохраненных', action: 'del' }
-                    ],
-                    onSelect: function(m) {
-                        if (m.action === 'play') {
-                            if (window.Lampa.Torrent && window.Lampa.Torrent.start) {
-                                window.Lampa.Torrent.start({ magnet: item.magnet, title: item.title });
-                            } else {
-                                window.location.href = item.magnet;
-                            }
-                        } else if (m.action === 'card') {
-                            if (item.id) Lampa.Activity.push({ component: 'full', id: item.id, method: 'tmdb' });
-                            else Lampa.Noty.show('ID фильма не был сохранен');
-                        } else if (m.action === 'del') {
-                            Storage.remove(item.magnet);
-                            showNativeList(screen, Storage.get());
-                        }
-                    }
-                });
-            });
-
-            container.append(card);
+        // Маскируем наши локальные сохранения под формат ТоррСервера, чтобы Лампа их приняла за родные
+        var formatted_local = local.map(function(item) {
+            return {
+                title: '📁 [Локально] ' + (item.title || 'Без названия'),
+                magnet: item.magnet,
+                hash: item.hash || 'local_' + Math.random(),
+                size: 0,
+                stat_string: 'Сохранено в памяти ТВ',
+                loaded_size: 0,
+                torrent_size: 0,
+                local_save: true, // Пометка, что это наша карточка
+                data: item
+            };
         });
 
-        body.append(container);
-        
-        // Пересчитываем сетку для пульта и сразу ставим фокус на ПЕРВЫЙ фильм в списке!
-        if (window.Lampa && window.Lampa.Controller) {
-            Lampa.Controller.collectionSet(body.find('.selector'));
-            var first_card = body.find('.selector').first()[0];
-            if (first_card) Lampa.Controller.collectionFocus(first_card);
-        }
+        // Объединяем: сначала наши сохранения, затем то, что пришло от сервера
+        return formatted_local.concat(server_items || []);
     }
 
+    // Встраиваемся в API ТоррСервера в Лампе
+    var check_timer = setInterval(function() {
+        if (window.Lampa && window.Lampa.Torrserver) {
+            clearInterval(check_timer);
+
+            // Перехватываем метод получения списка (list)
+            var orig_list = Lampa.Torrserver.list;
+            if (orig_list) {
+                Lampa.Torrserver.list = function (onSuccess, onError) {
+                    orig_list(function (server_items) {
+                        // Сервер ответил — подмешиваем наши данные и отдаём Лампе
+                        onSuccess(injectLocalTorrents(server_items));
+                    }, function (err) {
+                        // Сервер выключен или выдал ошибку — всё равно отдаём Лампе наши сохранения!
+                        var local_only = injectLocalTorrents([]);
+                        if (local_only.length > 0) onSuccess(local_only);
+                        else if (onError) onError(err);
+                    });
+                };
+            }
+        }
+    }, 200);
+
 })();
-/* --- КОНЕЦ БЛОКА: Тест #8 - Идеальная адаптация под пульт ТВ --- */
+/* --- КОНЕЦ БЛОКА: Тест #9 - Перехват источника данных --- */
