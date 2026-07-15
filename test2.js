@@ -1,32 +1,35 @@
 (function () {
     'use strict';
 
-    // ЕДИНОЕ ВРЕМЯ ЗАДЕРЖКИ ДЛЯ ВСЕХ УСТРОЙСТВ (4500 = 4.5 секунды)
-    var delay_time = 4000; 
+    // ВРЕМЯ ЗАДЕРЖКИ В МИЛЛИСЕКУНДАХ (4500 = 4.5 секунды)
+    var delay_time = 4500; 
     
     var executed = false;
-
-    function reloadStartPage() {
-        var active = Lampa.Activity.active();
-        
-        // Проверяем: есть ли страница и не ушли ли мы далеко в меню
-        if (active && Lampa.Activity.history && Lampa.Activity.history.length <= 1) {
-            console.log('SyncRefresh: 4.5 секунды прошло, перерисовываем страницу...');
-            Lampa.Activity.replace(active);
-        } else {
-            console.log('SyncRefresh: Пользователь уже в другом каталоге, обновление отменено.');
-        }
-    }
 
     function init() {
         if (executed) return;
         executed = true;
 
-        console.log('SyncRefresh: Таймер на 4.5 секунды запущен...');
-        setTimeout(reloadStartPage, delay_time);
+        // 1. Запоминаем, сколько страниц в истории было в момент старта
+        var start_len = (Lampa.Activity.history && Lampa.Activity.history.length) ? Lampa.Activity.history.length : 1;
+        
+        console.log('SyncRefresh: Таймер 4.5 сек запущен. Стартовый счётчик страниц:', start_len);
+
+        setTimeout(function() {
+            var active = Lampa.Activity.active();
+            var current_len = (Lampa.Activity.history && Lampa.Activity.history.length) ? Lampa.Activity.history.length : 1;
+
+            // 2. СРАВНИВАЕМ: Если счётчик страниц не изменился — значит, мы всё ещё на стартовой странице!
+            if (active && current_len === start_len) {
+                console.log('SyncRefresh: Вы на стартовом экране. Перерисовываем историю...');
+                Lampa.Activity.replace(active);
+            } else {
+                console.log('SyncRefresh: Вы ушли в другой каталог (счётчик изменился с ' + start_len + ' на ' + current_len + '). Обновление отменено!');
+            }
+        }, delay_time);
     }
 
-    // Надежный цикл ожидания загрузки интерфейса
+    // Надежный цикл проверки загрузки
     function checkLampaReady() {
         if (window.appready) {
             init();
