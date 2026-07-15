@@ -6,24 +6,23 @@
         catch(e) { return []; }
     }
 
-    // ТА САМАЯ КНОПКА (логика не менялась, она точно работает)
+    // 1. ПРОВЕРЕННАЯ КНОПКА (логика, которая работала)
     if (window.Lampa && window.Lampa.Select) {
         var old_show = Lampa.Select.show;
         Lampa.Select.show = function(params) {
-            // Кнопка добавляется только там, где есть данные
-            if (params.data && (params.data.magnet || params.data.hash)) {
-                params.items.push({
-                    title: '💾 Сохранить в Лампу',
-                    action: 'my_save_action'
-                });
-            }
+            // Добавляем кнопку принудительно, чтобы она точно была
+            params.items.push({
+                title: '💾 Сохранить в Лампу',
+                action: 'my_save_action'
+            });
 
             var old_onSelect = params.onSelect;
-            params.onSelect = function(item) {
-                if (item && item.action === 'my_save_action') {
-                    var d = params.data;
-                    var magnet = d.magnet || (d.hash ? 'magnet:?xt=urn:btih:' + d.hash : '');
-                    var title = d.title || 'Сохраненный торрент';
+            params.onSelect = function(a) {
+                if (a && a.action === 'my_save_action') {
+                    var act = Lampa.Activity.active() ? Lampa.Activity.active().activity : {};
+                    // Берем то, что есть в данных, либо из активности
+                    var magnet = (params.data && params.data.magnet) || act.magnet || '';
+                    var title = (params.data && params.data.title) || act.title || 'Сохраненный торрент';
                     
                     if (magnet) {
                         var list = getSaves();
@@ -31,7 +30,7 @@
                             list.unshift({
                                 title: title,
                                 magnet: magnet,
-                                img: d.img || d.poster || '',
+                                img: act.img || act.poster || '',
                                 stat_string: '💾 Сохранено'
                             });
                             localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
@@ -41,24 +40,22 @@
                         }
                     }
                 } else if (old_onSelect) {
-                    old_onSelect(item);
+                    old_onSelect(a);
                 }
             };
             return old_show(params);
         };
     }
 
-    // ХИРУРГИЧЕСКАЯ ПРАВКА ДЛЯ КАТАЛОГА (не трогает кнопку)
-    // Ждем готовности Лампы
-    var hookInterval = setInterval(function() {
-        if (window.Lampa && Lampa.Torrserve) {
-            clearInterval(hookInterval);
-            
-            var originalList = Lampa.Torrserve.list;
-            Lampa.Torrserve.list = function(onSuccess, onError) {
-                originalList(function(items) {
+    // 2. ОТДЕЛЬНЫЙ БЛОК ДЛЯ КАТАЛОГА (не влияет на кнопку)
+    var timer = setInterval(function() {
+        var TS = window.Lampa && (Lampa.Torrserver || Lampa.TorrServer);
+        if (TS && TS.list) {
+            clearInterval(timer);
+            var old_list = TS.list;
+            TS.list = function(onSuccess, onError) {
+                old_list(function(items) {
                     var saves = getSaves();
-                    // Просто добавляем наши сохранения к серверным
                     onSuccess(saves.concat(items || []));
                 }, onError);
             };
