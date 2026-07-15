@@ -1,113 +1,130 @@
 (function () {
     'use strict';
 
-    function startPlugin() {
-        if (window.safe_cache_topbar_initialized) return;
-        window.safe_cache_topbar_initialized = true;
+    // Защита от повторного запуска плагина
+    if (window.cache_cleaner_plugin_loaded) return;
+    window.cache_cleaner_plugin_loaded = true;
 
-        // Иконка корзины / очистки для шапки сайта
-        var svgIcon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-                          '<path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-                      '</svg>';
+    // === 1. Иконка "Очистка кэша" (стильная корзина с анимацией обновления) ===
+    var clean_icon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4ZM6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM8 9H16V19H8V9Z" fill="currentColor"/><path d="M12 11V17M10 13L12 11L14 13" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-        // ЮВЕЛИРНАЯ ОЧИСТКА: Удаляем строго мусор, настройки и избранное НЕ ТРОГАЕМ!
-        function clearOnlyCache() {
-            var clearedCount = 0;
+    // === 2. Функция безопасной очистки ТОЛЬКО кэша ===
+    function clearAppCache() {
+        // Выводим уведомление Lampa
+        if (window.Lampa && Lampa.Noty && Lampa.Noty.show) {
+            Lampa.Noty.show('Кэш очищен. Перезагрузка...');
+        }
 
-            // 1. Очищаем кэш постеров и сетевых запросов браузера/ТВ (Cache Storage API)
-            if (typeof caches !== 'undefined') {
+        try {
+            // А. Очистка кэша браузера/Service Worker (здесь копятся тяжелые постеры и чанки видео)
+            if (window.caches && typeof caches.keys === 'function') {
                 caches.keys().then(function (names) {
                     names.forEach(function (name) {
                         caches.delete(name);
                     });
-                }).catch(function() {});
+                }).catch(function(e) { console.log(e); });
             }
 
-            // 2. Очищаем временную сессионную память
-            if (typeof sessionStorage !== 'undefined') {
+            // Б. Очистка временной сессионной памяти
+            if (window.sessionStorage) {
                 sessionStorage.clear();
             }
 
-            // 3. Очищаем оперативную память (RAM) самой Lampa
-            if (Lampa.Activity && Lampa.Activity.cache) Lampa.Activity.cache = {};
-            if (Lampa.Template && Lampa.Template.cache) Lampa.Template.cache = {};
-
-            // 4. Сканируем localStorage и удаляем ТОЛЬКО технический кэш
-            // Все слова, которые указывают на временные файлы баз данных и парсеров:
-            var cacheKeywords = ['cache', 'tmdb', 'omdb', 'imdb', 'kinopoisk', 'temp', 'hash', 'online_cache', 'parser_cache', 'cub_cache', 'last_search'];
-            var keysToRemove = [];
-
-            for (var i = 0; i < localStorage.length; i++) {
-                var key = localStorage.key(i);
-                if (key) {
-                    var lowerKey = key.toLowerCase();
-                    // Если в имени ключа есть слово из списка кэша — помечаем на удаление
-                    for (var j = 0; j < cacheKeywords.length; j++) {
-                        if (lowerKey.indexOf(cacheKeywords[j]) !== -1) {
-                            keysToRemove.push(key);
-                            break;
+            // В. Точечная и безопасная очистка мусора в localStorage
+            // ВНИМАНИЕ: Мы НЕ трогаем аккаунты, избранное, настройки и список плагинов!
+            if (window.localStorage) {
+                var keys_to_remove = [];
+                for (var i = 0; i < localStorage.length; i++) {
+                    var key = localStorage.key(i);
+                    if (key) {
+                        // Ищем и удаляем только кэш парсеров, постеров, балансеров и временные файлы
+                        if (
+                            key.indexOf('cache_') === 0 ||
+                            key.indexOf('tmdb_') === 0 ||
+                            key.indexOf('kp_') === 0 ||
+                            key.indexOf('cub_cache_') === 0 ||
+                            key.indexOf('parser_cache') === 0 ||
+                            key.indexOf('online_cache') === 0 ||
+                            key.indexOf('image_cache') === 0 ||
+                            key.indexOf('temp_') === 0 ||
+                            key.indexOf('lampa_cache') === 0
+                        ) {
+                            keys_to_remove.push(key);
                         }
                     }
                 }
+                keys_to_remove.forEach(function(k) {
+                    localStorage.removeItem(k);
+                });
             }
 
-            // Удаляем найденный мусор
-            keysToRemove.forEach(function (key) {
-                localStorage.removeItem(key);
-                clearedCount++;
-            });
-
-            console.log('Бережная очистка кэша завершена. Удалено элементов: ' + clearedCount);
-        }
-
-        function addHeaderButton() {
-            // Если иконка уже есть, не дублируем
-            if ($('.header__action [data-action="topbar_clear_cache"]').length) return;
-
-            // Создаем кнопку. Класс "selector" обязателен для навигации с пульта ТВ!
-            var button = $('<div class="header__action-item selector" data-action="topbar_clear_cache" title="Очистить кэш">' + svgIcon + '</div>');
-
-            // Обработчик нажатия (hover:enter — кнопка ОК на пульте, click — для мыши)
-            button.on('hover:enter click', function () {
-                // 1. Показываем уведомление
-                if (Lampa.Noty && Lampa.Noty.show) {
-                    Lampa.Noty.show('Только кэш очищен! Перезагрузка...');
+            // Г. Очистка внутреннего кэша самой Lampa (если доступно)
+            if (window.Lampa) {
+                if (Lampa.Storage && Lampa.Storage.clearCache) {
+                    Lampa.Storage.clearCache();
+                } else if (Lampa.Storage && Lampa.Storage.cache && typeof Lampa.Storage.cache.clear === 'function') {
+                    Lampa.Storage.cache.clear();
                 }
-
-                // 2. Запускаем нашу безопасную очистку
-                clearOnlyCache();
-
-                // 3. Ждем 1.5 секунды (чтобы вы увидели уведомление, а ТВ успел стереть файлы) и перезагружаем
-                setTimeout(function () {
-                    window.location.reload();
-                }, 1500);
-            });
-
-            // Ищем шапку (учитываем стандартную Lampa и различные форки)
-            var headerAction = $('.header__action');
-            if (!headerAction.length) headerAction = $('.header__right');
-
-            if (headerAction.length) {
-                // Добавляем иконку в самое начало списка кнопок в верхнем правом углу
-                headerAction.prepend(button);
             }
+        } catch (e) {
+            console.error('Ошибка при очистке кэша Lampa:', e);
         }
 
-        // Запускаем отрисовку кнопки
-        addHeaderButton();
-
-        // Если форк перерисовывает шапку при переходе по меню — автоматически возвращаем иконку
-        Lampa.Controller.listener.follow('toggle', function () {
-            setTimeout(addHeaderButton, 200);
-        });
+        // Задержка 1.5 секунды перед перезагрузкой, чтобы пользователь успел увидеть уведомление
+        setTimeout(function () {
+            window.location.reload(true);
+        }, 1500);
     }
 
-    // Надёжный цикл: ждем полной загрузки интерфейса Lampa на ТВ
-    var checkInterval = setInterval(function () {
-        if (typeof Lampa !== 'undefined' && $('.header__action, .header__right').length) {
-            clearInterval(checkInterval);
-            startPlugin();
+    // === 3. Надежная отрисовка иконки в верхнем баре ===
+    function addCacheButton() {
+        // Если кнопка уже есть на экране — не дублируем
+        if ($('.header__action--cache-cleaner').length) return;
+
+        var actions = $('.header__actions');
+        if (actions.length) {
+            var btn = $(`<div class="header__action header__action--cache-cleaner" title="Очистить кэш">${clean_icon}</div>`);
+            
+            btn.on('click', function () {
+                clearAppCache();
+            });
+
+            // Добавляем иконку в верхнюю панель
+            actions.append(btn);
         }
-    }, 200);
+    }
+
+    // === 4. Инициализация и защита от "затыков" с появлением иконки ===
+    function initPlugin() {
+        addCacheButton();
+
+        // Подстраховка: проверяем панель несколько раз с интервалом, 
+        // если вдруг Lampa отрисовала шапку с задержкой или перерисовала интерфейс
+        var check_attempts = 0;
+        var check_timer = setInterval(function() {
+            addCacheButton();
+            check_attempts++;
+            if ($('.header__action--cache-cleaner').length || check_attempts > 10) {
+                clearInterval(check_timer);
+            }
+        }, 500);
+    }
+
+    // Запуск в зависимости от состояния загрузки приложения
+    if (window.appready) {
+        initPlugin();
+    } else {
+        if (window.Lampa && Lampa.Listener) {
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type == 'ready') {
+                    initPlugin();
+                }
+            });
+        }
+        // Дополнительный fallback для нестандартных или старых сборок
+        $(document).ready(function() {
+            setTimeout(initPlugin, 1000);
+        });
+    }
 
 })();
