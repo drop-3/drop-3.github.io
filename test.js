@@ -81,7 +81,7 @@
         document.getElementById('speedtest-iframe').src = LINKS.speedtest;
     }
 
-    // Отображение альтернативного меню Выхода
+    // Отображение нашего кастомного меню Выхода
     function showBackMenu() {
         var items = [];
 
@@ -96,7 +96,8 @@
         if (Lampa.Storage.get('back_menu_fork', '2') !== '1') items.push({ title: MENU_ITEMS.fork, action: 'fork' });
         if (Lampa.Storage.get('back_menu_drm', '2') !== '1') items.push({ title: MENU_ITEMS.drm, action: 'drm' });
 
-        Lampa.Select.show({
+        // Вызываем оригинальный Lampa.Select (сохраненный ниже), чтобы не зациклить скрипт
+        originalSelectShow.call(Lampa.Select, {
             title: 'Выход',
             items: items,
             onBack: function () {
@@ -157,33 +158,37 @@
         });
     }
 
+    // Сохраняем оригинальную системную функцию вызова меню
+    var originalSelectShow;
+
     // Главная функция инициализации
     function startPlugin() {
         if (window.back_menu_initialized) return;
         window.back_menu_initialized = true;
 
+        originalSelectShow = Lampa.Select.show;
+
         function init() {
             addSettings();
 
-            // ИНТЕРСЕПТОР: Отслеживаем открытие любого системного меню (Select)
-            Lampa.Controller.listener.follow('toggle', function (e) {
-                if (e.name === 'select') {
-                    // Даем Lampa 10 миллисекунд на отрисовку заголовка окна
-                    setTimeout(function () {
-                        var title = $('.selectbox__title').text().trim();
-                        var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'Выход').trim();
-                        
-                        // Если заголовок совпадает со словом "Выход" или "Exit",
-                        // моментально закрываем стандартное окно и открываем наше!
-                        if (title === targetTitle || title === 'Выход' || title === 'Exit' || title === 'Выход ') {
-                            Lampa.Select.close();
-                            setTimeout(function () {
-                                showBackMenu();
-                            }, 10);
-                        }
-                    }, 10);
+            // ГЛУБОКИЙ ПЕРЕХВАТ (Monkey Patching):
+            // Подменяем системную функцию Lampa.Select.show на свою!
+            // Теперь, когда любой форк пытается открыть меню, мы проверяем его название.
+            Lampa.Select.show = function (params) {
+                if (params && params.title) {
+                    var title = String(params.title).toLowerCase().trim();
+                    var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'выход').toLowerCase().trim();
+
+                    // Если форк пытается открыть меню с названием "Выход", "Exit" или "Закрыть"
+                    if (title.indexOf(targetTitle) !== -1 || title.indexOf('выход') !== -1 || title.indexOf('exit') !== -1 || title.indexOf('закрыть') !== -1) {
+                        // Блокируем вызов стандартного меню и открываем наше!
+                        showBackMenu();
+                        return;
+                    }
                 }
-            });
+                // Если это любое другое меню (например, выбор качества видео) — открываем штатно
+                originalSelectShow.apply(this, arguments);
+            };
         }
 
         if (window.appready) {
@@ -195,7 +200,7 @@
         }
     }
 
-    // Надёжный цикл: ждем полной загрузки всех нужных модулей Lampa
+    // Надёжный цикл: ждем полной загрузки всех нужных модулей
     var checkInterval = setInterval(function () {
         if (typeof Lampa !== 'undefined' && Lampa.SettingsApi && Lampa.Controller && Lampa.Select) {
             clearInterval(checkInterval);
