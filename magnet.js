@@ -3,7 +3,7 @@
 
     var VERSION = '1.0-final';
 
-    // Функция для вызова уведомлений Lampa (нужна только для сообщения об успешном копировании)
+    // Функция для вызова уведомлений Lampa
     function showNoty(msg) {
         if (window.Lampa && window.Lampa.Noty && typeof window.Lampa.Noty.show === 'function') {
             window.Lampa.Noty.show(msg);
@@ -16,7 +16,7 @@
         }
     }
 
-    // 1. Перехват шаблонов (сохраняем данные раздачи в элемент)
+    // 1. Перехват шаблонов
     function hookTemplate() {
         if (!window.Lampa || !window.Lampa.Template) return false;
         if (window.Lampa.Template._copy_hooked) return true;
