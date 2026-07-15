@@ -135,7 +135,7 @@
                     case 'reboot': location.reload(); break;
                     case 'server': switchServer(); break;
                     case 'cache': 
-                        if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Только кэш очищен! Перезагрузка...');
+                        if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Кэш очищен! Перезагрузка...');
                         clearOnlyCache(); 
                         setTimeout(function () { window.location.reload(); }, 1500);
                         break;
