@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    // Генератор пунктов меню с иконками (размер 1.2em для идеальной вёрстки в любых форках)
+    // Генератор пунктов меню с иконками (размер 1.2em для вёрстки в любых форках)
     function createMenuItem(title, svgPath) {
         return '<div class="settings-folder" style="padding:0!important">' +
                    '<div style="width:2.2em;height:1.7em;padding-right:.5em">' +
@@ -13,7 +13,7 @@
                '</div>';
     }
 
-    // Иконки SVG только для 5 наших пунктов
+    // Иконки SVG для 5 пунктов
     var MENU_ITEMS = {
         exit: createMenuItem('Закрыть приложение', '<path d="M14.5 9.5L9.5 14.5M9.5 9.5L14.5 14.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/>'),
         reboot: createMenuItem('Перезагрузить', '<path d="M11 2a9 9 0 0 0-9 9 9 9 0 0 0 4.68 7.68l1.46-1.46A7 7 0 1 1 18 11a7 7 0 0 1-.79 3.21l1.46 1.46A9 9 0 0 0 11 2z"/>'),
@@ -34,7 +34,7 @@
         if (Lampa.Platform.is('browser')) window.close();
     }
 
-    // Смена сервера
+    // Смена сервера не работает, доделать
     function switchServer() {
         var protocol = location.protocol === 'https:' ? 'https://' : 'http://';
         Lampa.Input.open({
@@ -59,7 +59,7 @@
         }
     }
 
-    // БЕРЕЖНАЯ ОЧИСТКА: Строго кэш! Настройки, избранное и аккаунты НЕ ТРОГАЕМ!
+    // БЕРЕЖНАЯ ОЧИСТКА: Строго кэш!
     function clearOnlyCache() {
         if (typeof caches !== 'undefined') {
             caches.keys().then(function (names) {
@@ -87,7 +87,7 @@
         keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
     }
 
-    // САНИТАР: Превращает старые цифры ('1'/'2') от прошлых тестов в правильные переключатели (true/false)
+    // переключатели (true/false)
     function normalizeStorage() {
         var keys = ['back_menu_exit', 'back_menu_reboot', 'back_menu_server', 'back_menu_cache', 'back_menu_settings'];
         keys.forEach(function(key) {
@@ -109,7 +109,7 @@
     var isCustomMenuOpen = false;
     var originalSelectShow;
 
-    // Отображение нашего кастомного меню Выхода
+    // Отображение кастомного меню Выхода
     function showBackMenu() {
         var items = [];
 
@@ -162,7 +162,7 @@
         ];
 
         params.forEach(function (param) {
-            // type: 'trigger' — это стандартный ползунок/галочка Lampa. Переключается в 1 клик!
+            // type: 'trigger' — стандартный ползунок/галочка Lampa. Переключается в 1 клик!
             Lampa.SettingsApi.addParam({
                 component: 'back_menu',
                 param: {
