@@ -1,14 +1,14 @@
 (function () {
     'use strict';
 
-    // Изменено на v4.3, чтобы ТВ автоматически подхватил новый список парсеров без сброса кэша!
+    // Изменено на v4.3
     var STORAGE_PARSERS = 'ps_list_combo_v4.3';
     var STORAGE_PRI_ACT = 'bat_url_two';
     var STORAGE_SEC_ACT = 'ps_active_sec_v4.3';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Обновленный список парсеров (jacred.ru и jacred.xyz вместо старых)
+    // Обновленный список парсеров
     var DEFAULT_PARSERS = [
         { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
         { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
@@ -202,7 +202,7 @@
         });
     }
 
-    // ---- НАЧАЛО БЛОКА: Улучшенная генерация ссылок с прокси-фоллбеком ----
+    // ---- НАЧАЛО БЛОКА: Улучшенная генерация ссылок
     function healthUrlCandidates(parser) {
         var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
         var type = (parser.settings && parser.settings.parser_torrent_type) || 'jackett';
@@ -426,7 +426,7 @@
         runHealthUI();
     }
 
-    // Добавление кнопки (с иконкой магнита 🧲) в верхний бар
+    // Добавление кнопки с иконкой магнита в верхний бар
     function addTopBarButton() {
         if ($('.bat-top-parser-btn').length) return;
         var head_actions = $('.head__actions');
