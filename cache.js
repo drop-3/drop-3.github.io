@@ -1,92 +1,58 @@
 (function () {
     'use strict';
 
-    function initCacheCleaner() {
-        // Удаляем старую кнопку, если ты перезагружаешь или перевключаешь плагин в настройках
-        $('.header__action_cache_cleaner').remove();
+    function init() {
+        // Иконка очистки
+        var icon = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4ZM6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM8 9H16V19H8V9Z" fill="currentColor"/><path d="M12 11V17M10 13L12 11L14 13" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        
+        var button = $(`<div class="header__action" title="Очистить кэш">${icon}</div>`);
 
-        // Иконка очистки (метла/корзина) с жёстко заданными размерами, чтобы не пропадала на ТВ
-        var icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" style="width: 1.3em; height: 1.3em;"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-
-        // Создаем кнопку точно так же, как создаётся кнопка магнита в парсерах
-        var button = $('<div class="header__action header__action_cache_cleaner" title="Очистить кэш">' + icon + '</div>');
-
-        // Вешаем функцию очистки на клик
         button.on('click', function () {
-            // 1. Показываем стандартное уведомление от Lampa
-            if (window.Lampa && Lampa.Noty && Lampa.Noty.show) {
-                Lampa.Noty.show('Кэш очищен. Перезагрузка...');
+            Lampa.Noty.show('Кэш очищен. Перезагрузка...');
+
+            if (window.caches) {
+                caches.keys().then(function (names) {
+                    for (let name of names) caches.delete(name);
+                });
             }
 
-            // 2. Очистка кэша браузера / Service Worker (тяжелые постеры и чанки видео)
-            try {
-                if (typeof caches !== 'undefined' && caches.keys) {
-                    caches.keys().then(function (names) {
-                        names.forEach(function (name) {
-                            caches.delete(name);
-                        });
-                    });
+            if (window.sessionStorage) {
+                sessionStorage.clear();
+            }
+
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                let key = localStorage.key(i);
+                if (key && (
+                    key.indexOf('cache_') === 0 ||
+                    key.indexOf('tmdb_') === 0 ||
+                    key.indexOf('kp_') === 0 ||
+                    key.indexOf('cub_cache_') === 0 ||
+                    key.indexOf('parser_cache') === 0 ||
+                    key.indexOf('online_cache') === 0 ||
+                    key.indexOf('image_cache') === 0 ||
+                    key.indexOf('temp_') === 0
+                )) {
+                    localStorage.removeItem(key);
                 }
-            } catch (e) {}
+            }
 
-            // 3. Очистка временной сессионной памяти
-            try {
-                if (window.sessionStorage) sessionStorage.clear();
-            } catch (e) {}
+            if (Lampa.Storage.clearCache) {
+                Lampa.Storage.clearCache();
+            }
 
-            // 4. Очистка только кэша и мусора из localStorage (плагины, настройки и аккаунт НЕ удаляются!)
-            try {
-                if (window.localStorage) {
-                    var keys_to_delete = [];
-                    for (var i = 0; i < localStorage.length; i++) {
-                        var key = localStorage.key(i);
-                        if (key && (
-                            key.indexOf('cache') !== -1 ||
-                            key.indexOf('tmdb') !== -1 ||
-                            key.indexOf('kp_') !== -1 ||
-                            key.indexOf('cub_cache') !== -1 ||
-                            key.indexOf('parser_cache') !== -1 ||
-                            key.indexOf('online_cache') !== -1 ||
-                            key.indexOf('image_cache') !== -1 ||
-                            key.indexOf('temp') !== -1
-                        )) {
-                            keys_to_delete.push(key);
-                        }
-                    }
-                    for (var j = 0; j < keys_to_delete.length; j++) {
-                        localStorage.removeItem(keys_to_delete[j]);
-                    }
-                }
-            } catch (e) {}
-
-            // 5. Очистка внутреннего кэша Lampa
-            try {
-                if (window.Lampa && Lampa.Storage && Lampa.Storage.clearCache) {
-                    Lampa.Storage.clearCache();
-                }
-            } catch (e) {}
-
-            // 6. Перезагрузка через 1.5 секунды, чтобы успело показаться уведомление
             setTimeout(function () {
                 window.location.reload(true);
             }, 1500);
         });
 
-        // Вставляем иконку в верхний бар (ровно туда же, куда вставляется магнит)
-        $('.header__actions').append(button);
+        // Вставляем ровно туда же, куда встает иконка магнита в парсерах
+        $('.header__action').last().after(button);
     }
 
-    // Стандартный запуск Lampa-плагина (точно как в parsers.js)
-    if (window.appready) {
-        initCacheCleaner();
-    } else {
-        if (window.Lampa && Lampa.Listener) {
-            Lampa.Listener.follow('app', function (e) {
-                if (e.type == 'ready') {
-                    initCacheCleaner();
-                }
-            });
-        }
+    if (window.appready) init();
+    else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type == 'ready') init();
+        });
     }
-
 })();
