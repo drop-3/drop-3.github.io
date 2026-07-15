@@ -8,7 +8,7 @@
         }
 
         try {
-            // Очистка кэша браузера / Service Worker (тяжелые постеры и видео-чанки)
+            // Очистка кэша браузера
             if (typeof caches !== 'undefined' && caches.keys) {
                 caches.keys().then(function (names) {
                     names.forEach(function (name) {
@@ -61,7 +61,7 @@
         }, 1500);
     }
 
-    // Добавление кнопки в верхний бар (ровно по твоей схеме из parsers.js)
+    // Добавление кнопки в верхний бар
     function addTopBarButton() {
         if ($('.bat-top-cache-btn').length) return;
         var head_actions = $('.head__actions');
@@ -79,7 +79,7 @@
             '</div>'
         );
 
-        // Используем ТОЛЬКО hover:enter, как в твоем рабочем коде
+        // Используем ТОЛЬКО hover:enter
         btn.on('hover:enter', function () {
             clearAppCache();
         });
