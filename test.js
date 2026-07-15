@@ -11,7 +11,7 @@
         speedtest: 'http://speedtest.vokino.tv/?R=3'
     };
 
-    // Генератор красивых пунктов меню с иконками
+    // Генератор пунктов меню с иконками
     function createMenuItem(title, svgPath) {
         return '<div class="settings-folder" style="padding:0!important">' +
                    '<div style="width:2.2em;height:1.7em;padding-right:.5em">' +
@@ -37,7 +37,7 @@
         drm: createMenuItem('DRM Play', '<path d="M46,37H2a1,1,0,0,1-1-1V8A1,1,0,0,1,2,7H46a1,1,0,0,1,1,1V36A1,1,0,0,1,46,37ZM45,9H3V35H45ZM21,16a.975.975,0,0,1,.563.2l7.771,4.872a.974.974,0,0,1,.261,1.715l-7.974,4.981A.982.982,0,0,1,21,28a1,1,0,0,1-1-1V17A1,1,0,0,1,21,16Z"/>')
     };
 
-    // Функция системного закрытия приложения на разных платформах
+    // Функция закрытия приложения на разных ТВ и устройствах
     function exitApp() {
         if (Lampa.Platform.is('webos')) window.location.assign('exit://exit');
         if (Lampa.Platform.is('tizen')) tizen.application.getCurrentApplication().exit();
@@ -65,7 +65,7 @@
         });
     }
 
-    // Запуск SpeedTest во всплывающем окне
+    // Запуск SpeedTest
     function openSpeedTest() {
         var html = $('<div style="text-align:right;"><div style="min-height:360px;"><iframe id="speedtest-iframe" width="100%" height="100%" frameborder="0"></iframe></div></div>');
         Lampa.Modal.open({
@@ -81,11 +81,10 @@
         document.getElementById('speedtest-iframe').src = LINKS.speedtest;
     }
 
-    // Отображение самого альтернативного меню
+    // Отображение альтернативного меню Выхода
     function showBackMenu() {
         var items = [];
 
-        // Проверяем настройки (если значение не '1' (Скрыть), то показываем пункт. По умолчанию '2' (Отобразить))
         if (Lampa.Storage.get('back_menu_exit', '2') !== '1') items.push({ title: MENU_ITEMS.exit, action: 'exit' });
         if (Lampa.Storage.get('back_menu_reboot', '2') !== '1') items.push({ title: MENU_ITEMS.reboot, action: 'reboot' });
         if (Lampa.Storage.get('back_menu_server', '2') !== '1') items.push({ title: MENU_ITEMS.server, action: 'server' });
@@ -120,7 +119,7 @@
         });
     }
 
-    // Регистрируем вкладку и параметры в Настройках Lampa
+    // Регистрируем настройки
     function addSettings() {
         Lampa.SettingsApi.addComponent({
             component: 'back_menu',
@@ -158,7 +157,7 @@
         });
     }
 
-    // Главная функция инициализации плагина
+    // Главная функция инициализации
     function startPlugin() {
         if (window.back_menu_initialized) return;
         window.back_menu_initialized = true;
@@ -166,25 +165,25 @@
         function init() {
             addSettings();
 
-            // Перехват: когда пользователь переключается на главный экран ('main'), 
-            // мы подменяем стандартную функцию выхода .back() на открытие нашего меню
+            // ИНТЕРСЕПТОР: Отслеживаем открытие любого системного меню (Select)
             Lampa.Controller.listener.follow('toggle', function (e) {
-                if (e.name === 'main') {
-                    var controller = Lampa.Controller.enabled();
-                    if (controller) {
-                        controller.back = function () {
-                            showBackMenu();
-                        };
-                    }
+                if (e.name === 'select') {
+                    // Даем Lampa 10 миллисекунд на отрисовку заголовка окна
+                    setTimeout(function () {
+                        var title = $('.selectbox__title').text().trim();
+                        var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'Выход').trim();
+                        
+                        // Если заголовок совпадает со словом "Выход" или "Exit",
+                        // моментально закрываем стандартное окно и открываем наше!
+                        if (title === targetTitle || title === 'Выход' || title === 'Exit' || title === 'Выход ') {
+                            Lampa.Select.close();
+                            setTimeout(function () {
+                                showBackMenu();
+                            }, 10);
+                        }
+                    }, 10);
                 }
             });
-
-            // Если главный экран уже открыт прямо сейчас (в момент загрузки плагина)
-            if (Lampa.Controller.enabled() && Lampa.Controller.enabled().name === 'main') {
-                Lampa.Controller.enabled().back = function () {
-                    showBackMenu();
-                };
-            }
         }
 
         if (window.appready) {
@@ -196,9 +195,9 @@
         }
     }
 
-    // Надёжный цикл ожидания загрузки Lampa (проверка каждые 200 мс)
+    // Надёжный цикл: ждем полной загрузки всех нужных модулей Lampa
     var checkInterval = setInterval(function () {
-        if (typeof Lampa !== 'undefined' && Lampa.SettingsApi && Lampa.Controller) {
+        if (typeof Lampa !== 'undefined' && Lampa.SettingsApi && Lampa.Controller && Lampa.Select) {
             clearInterval(checkInterval);
             startPlugin();
         }
