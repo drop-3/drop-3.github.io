@@ -13,7 +13,7 @@
                '</div>';
     }
 
-    // Иконки SVG только для нужных пунктов
+    // Иконки SVG только для 5 наших пунктов
     var MENU_ITEMS = {
         exit: createMenuItem('Закрыть приложение', '<path d="M14.5 9.5L9.5 14.5M9.5 9.5L14.5 14.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/>'),
         reboot: createMenuItem('Перезагрузить', '<path d="M11 2a9 9 0 0 0-9 9 9 9 0 0 0 4.68 7.68l1.46-1.46A7 7 0 1 1 18 11a7 7 0 0 1-.79 3.21l1.46 1.46A9 9 0 0 0 11 2z"/>'),
@@ -22,7 +22,7 @@
         settings: createMenuItem('Настройки', '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>')
     };
 
-    // Функция закрытия приложения на разных ТВ и устройствах
+    // Функция закрытия приложения на разных ТВ
     function exitApp() {
         if (Lampa.Platform.is('webos')) window.location.assign('exit://exit');
         if (Lampa.Platform.is('tizen')) tizen.application.getCurrentApplication().exit();
@@ -87,26 +87,40 @@
         keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
     }
 
-    // Флажок, чтобы скрипт не перехватывал сам себя
-    var isCustomMenuOpen = false;
+    // САНИТАР: Превращает старые цифры ('1'/'2') от прошлых тестов в правильные переключатели (true/false)
+    function normalizeStorage() {
+        var keys = ['back_menu_exit', 'back_menu_reboot', 'back_menu_server', 'back_menu_cache', 'back_menu_settings'];
+        keys.forEach(function(key) {
+            var val = Lampa.Storage.get(key);
+            if (val === '2' || val === 2 || val === 'true') Lampa.Storage.set(key, true);
+            if (val === '1' || val === 1 || val === 'false' || val === '0') Lampa.Storage.set(key, false);
+        });
+    }
 
-    // Сохраняем оригинальную функцию вызова меню
+    // Умная проверка: если пункт не выключен явно (false), то показываем его!
+    function isItemEnabled(key) {
+        var val = Lampa.Storage.get(key);
+        if (val === false || val === 'false' || val === '0' || val === 0 || val === '1' || val === 1) {
+            return false;
+        }
+        return true;
+    }
+
+    var isCustomMenuOpen = false;
     var originalSelectShow;
 
     // Отображение нашего кастомного меню Выхода
     function showBackMenu() {
         var items = [];
 
-        // Проверяем настройки (по умолчанию '2' = Отобразить)
-        if (Lampa.Storage.get('back_menu_exit', '2') === '2') items.push({ title: MENU_ITEMS.exit, action: 'exit' });
-        if (Lampa.Storage.get('back_menu_reboot', '2') === '2') items.push({ title: MENU_ITEMS.reboot, action: 'reboot' });
-        if (Lampa.Storage.get('back_menu_server', '2') === '2') items.push({ title: MENU_ITEMS.server, action: 'server' });
-        if (Lampa.Storage.get('back_menu_cache', '2') === '2') items.push({ title: MENU_ITEMS.cache, action: 'cache' });
-        if (Lampa.Storage.get('back_menu_settings', '2') === '2') items.push({ title: MENU_ITEMS.settings, action: 'settings' });
+        if (isItemEnabled('back_menu_exit')) items.push({ title: MENU_ITEMS.exit, action: 'exit' });
+        if (isItemEnabled('back_menu_reboot')) items.push({ title: MENU_ITEMS.reboot, action: 'reboot' });
+        if (isItemEnabled('back_menu_server')) items.push({ title: MENU_ITEMS.server, action: 'server' });
+        if (isItemEnabled('back_menu_cache')) items.push({ title: MENU_ITEMS.cache, action: 'cache' });
+        if (isItemEnabled('back_menu_settings')) items.push({ title: MENU_ITEMS.settings, action: 'settings' });
 
         isCustomMenuOpen = true;
 
-        // Вызываем сохранённый оригинальный метод без перехвата
         originalSelectShow.call(Lampa.Select, {
             title: 'Выход',
             items: items,
@@ -131,7 +145,7 @@
         });
     }
 
-    // Регистрируем настройки с мгновенным переключением в 1 клик
+    // Регистрируем настройки с РОДНЫМ переключателем Lampa (type: 'trigger')
     function addSettings() {
         Lampa.SettingsApi.addComponent({
             component: 'back_menu',
@@ -148,31 +162,17 @@
         ];
 
         params.forEach(function (param) {
-            var currentValue = Lampa.Storage.get(param.name, '2');
-            var statusText = currentValue === '2' ? 'Отображается' : 'Скрыто';
-
+            // type: 'trigger' — это стандартный ползунок/галочка Lampa. Переключается в 1 клик!
             Lampa.SettingsApi.addParam({
                 component: 'back_menu',
                 param: {
                     name: param.name,
-                    type: 'static' // Используем static вместо select, чтобы не вылезало окно выбора
+                    type: 'trigger',
+                    default: true
                 },
                 field: {
                     name: param.field,
-                    description: statusText
-                },
-                onRender: function (item) {
-                    // При клике на строку или нажатии ОК на пульте — мгновенно меняем значение
-                    item.on('hover:enter click', function () {
-                        var val = Lampa.Storage.get(param.name, '2');
-                        var newVal = val === '2' ? '1' : '2'; // Меняем 2 на 1 или 1 на 2
-                        
-                        Lampa.Storage.set(param.name, newVal);
-                        
-                        // Мгновенно обновляем текст справа
-                        var newText = newVal === '2' ? 'Отображается' : 'Скрыто';
-                        item.find('.settings-param__descript').text(newText);
-                    });
+                    description: 'Отображать в меню выхода'
                 }
             });
         });
@@ -183,26 +183,23 @@
         if (window.back_menu_initialized) return;
         window.back_menu_initialized = true;
 
+        normalizeStorage(); // Очищаем память от старых тестов
         originalSelectShow = Lampa.Select.show;
 
         function init() {
             addSettings();
 
-            // МГНОВЕННЫЙ ПЕРЕХВАТ (Monkey Patching):
-            // Перехватываем команду рисования меню ДО того, как телевизор начнёт её выполнять!
+            // МГНОВЕННЫЙ ПЕРЕХВАТ (До отрисовки, без миганий!)
             Lampa.Select.show = function (params) {
                 if (params && params.title && !isCustomMenuOpen) {
                     var title = String(params.title).toLowerCase().trim();
                     var targetTitle = (Lampa.Lang && Lampa.Lang.translate ? Lampa.Lang.translate('title_out') : 'выход').toLowerCase().trim();
 
-                    // Если система пытается открыть меню Выхода
                     if (title.indexOf(targetTitle) !== -1 || title.indexOf('выход') !== -1 || title.indexOf('exit') !== -1 || title.indexOf('закрыть') !== -1) {
-                        // Блокируем стандартное окно и мгновенно выводим наше
                         showBackMenu();
                         return;
                     }
                 }
-                // Если это любое другое меню (например, выбор озвучки) — открываем штатно
                 originalSelectShow.apply(this, arguments);
             };
         }
