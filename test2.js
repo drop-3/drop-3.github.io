@@ -1,112 +1,111 @@
-/* --- СТАРТ БЛОКА: Тест #9 - Перехват источника данных --- */
+/* --- СТАРТ БЛОКА: Финальный минималистичный плагин --- */
 (function () {
     'use strict';
 
-    // 1. Хранилище (LocalStorage)
-    var Storage = {
-        get: function() {
-            try { return JSON.parse(localStorage.getItem('lampa_local_torrents') || '[]'); } 
-            catch (e) { return []; }
-        },
-        save: function(item) {
-            var list = this.get();
-            if (list.some(function(t) { return t.magnet === item.magnet; })) {
-                if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Уже сохранено!');
-                return;
-            }
-            list.push(item);
-            localStorage.setItem('lampa_local_torrents', JSON.stringify(list));
-            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Сохранено в локальные!');
-        }
-    };
+    // 1. Работа с локальной памятью (сохранение и получение JSON)
+    function getSaves() {
+        try { return JSON.parse(localStorage.getItem('lampa_my_torrents') || '[]'); } 
+        catch(e) { return []; }
+    }
 
-    // 2. Кнопка "Сохранить" в контекстном меню (уже проверенная и рабочая)
+    function addSave(item) {
+        var list = getSaves();
+        // Проверка на дубликаты
+        if (!list.some(function(i) { return i.magnet === item.magnet || (i.hash && i.hash === item.hash); })) {
+            list.unshift(item); // Добавляем в начало списка
+            localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
+            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('💾 Сохранено в Лампу!');
+        } else {
+            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Уже есть в сохраненных!');
+        }
+    }
+
+    // 2. Добавляем кнопку "Сохранить" в контекстное меню раздач
     if (window.Lampa && window.Lampa.Select) {
-        var orig_show = Lampa.Select.show;
-        Lampa.Select.show = function (params) {
-            var magnet = '';
+        var old_show = Lampa.Select.show;
+        Lampa.Select.show = function(params) {
             var el = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
             var d = el.data('injected_torrent_data') || el.data('element') || el.data('item') || el.data('torrent') || el.data('data') || params.data;
+            var magnet = '', hash = '';
             
             if (d) {
-                var hash = d.hash || d.info_hash || d.infoHash || d.btih;
+                hash = d.hash || d.info_hash || d.infoHash || d.btih || '';
                 if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
                 else if (d.magnet) magnet = d.magnet;
-                else if (typeof d === 'string' && d.indexOf('magnet:') === 0) magnet = d;
             }
-
+            
             if (magnet) {
                 params.items.push({
-                    title: '💾 Сохранить в локальные',
-                    action: 'save_local',
-                    magnet: magnet,
-                    title_film: (Lampa.Activity.active() ? Lampa.Activity.active().activity.title : 'Без названия'),
-                    id_film: (Lampa.Activity.active() ? Lampa.Activity.active().activity.id : null)
+                    title: '💾 Сохранить в Лампу',
+                    action: 'save_local'
                 });
-
-                var orig_onSelect = params.onSelect;
-                params.onSelect = function (item) {
+                
+                var old_onSelect = params.onSelect;
+                params.onSelect = function(item) {
                     if (item && item.action === 'save_local') {
-                        Storage.save({
-                            title: item.title_film,
-                            magnet: item.magnet,
-                            hash: item.magnet ? item.magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1') : '',
-                            id: item.id_film,
-                            date: Date.now()
+                        // ТОТ САМЫЙ НАМЁК: Достаём постер и название из текущей карточки фильма!
+                        var act = Lampa.Activity.active();
+                        var card = act ? (act.card || act.data || (act.activity ? (act.activity.card || act.activity.data) : null)) : null;
+                        var title = card ? (card.title || card.name) : (d.title || 'Без названия');
+                        var img = card ? (card.img || card.poster || card.backdrop) : '';
+                        
+                        addSave({
+                            title: title,
+                            img: img, // Сохраняем постер
+                            magnet: magnet,
+                            hash: hash || magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1')
                         });
-                    } else if (orig_onSelect) orig_onSelect(item);
+                    } else if (old_onSelect) {
+                        old_onSelect(item);
+                    }
                 };
             }
-            return orig_show(params);
+            return old_show(params);
         };
     }
 
-    // 3. ТОТ САМЫЙ НАМЁК: Перехватываем данные, которые раздел тянет с ТоррСервера!
-    function injectLocalTorrents(server_items) {
-        var local = Storage.get();
-        if (!local || local.length === 0) return server_items || [];
-
-        // Маскируем наши локальные сохранения под формат ТоррСервера, чтобы Лампа их приняла за родные
-        var formatted_local = local.map(function(item) {
-            return {
-                title: '📁 [Локально] ' + (item.title || 'Без названия'),
-                magnet: item.magnet,
-                hash: item.hash || 'local_' + Math.random(),
-                size: 0,
-                stat_string: 'Сохранено в памяти ТВ',
-                loaded_size: 0,
-                torrent_size: 0,
-                local_save: true, // Пометка, что это наша карточка
-                data: item
-            };
-        });
-
-        // Объединяем: сначала наши сохранения, затем то, что пришло от сервера
-        return formatted_local.concat(server_items || []);
-    }
-
-    // Встраиваемся в API ТоррСервера в Лампе
-    var check_timer = setInterval(function() {
-        if (window.Lampa && window.Lampa.Torrserver) {
-            clearInterval(check_timer);
-
-            // Перехватываем метод получения списка (list)
-            var orig_list = Lampa.Torrserver.list;
-            if (orig_list) {
-                Lampa.Torrserver.list = function (onSuccess, onError) {
-                    orig_list(function (server_items) {
-                        // Сервер ответил — подмешиваем наши данные и отдаём Лампе
-                        onSuccess(injectLocalTorrents(server_items));
-                    }, function (err) {
-                        // Сервер выключен или выдал ошибку — всё равно отдаём Лампе наши сохранения!
-                        var local_only = injectLocalTorrents([]);
-                        if (local_only.length > 0) onSuccess(local_only);
+    // 3. ТОТ САМЫЙ НАМЁК: Подменяем сетевой запрос JSON на нашу локальную память!
+    function overrideTorrServerData() {
+        if (window.Lampa && window.Lampa.Torrserver && !Lampa.Torrserver._my_local_hook) {
+            Lampa.Torrserver._my_local_hook = true;
+            
+            var old_list = Lampa.Torrserver.list;
+            Lampa.Torrserver.list = function(onSuccess, onError) {
+                // Превращаем наши сохранения в стандартный формат JSON ТоррСервера
+                var my_saved_json = getSaves().map(function(item) {
+                    return {
+                        title: '📁 ' + item.title,
+                        img: item.img || '', // Передаём постер Лампе
+                        poster: item.img || '',
+                        hash: item.hash,
+                        magnet: item.magnet,
+                        size: 0,
+                        loaded_size: 0,
+                        torrent_size: 0,
+                        stat_string: '💾 Сохранено в памяти ТВ',
+                        status: 'local'
+                    };
+                });
+                
+                // Запрашиваем данные у сервера и склеиваем: СНАЧАЛА наши сохранения, затем сетевые
+                if (old_list) {
+                    old_list(function(server_list) {
+                        onSuccess(my_saved_json.concat(server_list || []));
+                    }, function(err) {
+                        // Если ТоррСервер выключен (ошибка сети) — всё равно отдаём наши сохранения!
+                        if (my_saved_json.length > 0) onSuccess(my_saved_json);
                         else if (onError) onError(err);
                     });
-                };
-            }
+                } else {
+                    onSuccess(my_saved_json);
+                }
+            };
         }
-    }, 200);
+    }
+
+    // Включаем подмену данных сразу и проверяем через секунду (если ядро Лампы загружалось чуть дольше)
+    overrideTorrServerData();
+    setTimeout(overrideTorrServerData, 1000);
 
 })();
-/* --- КОНЕЦ БЛОКА: Тест #9 - Перехват источника данных --- */
+/* --- КОНЕЦ БЛОКА: Финальный минималистичный плагин --- */
