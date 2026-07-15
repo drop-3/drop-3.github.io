@@ -1,41 +1,32 @@
 (function () {
     'use strict';
 
-    // ВРЕМЯ ЗАДЕРЖКИ (в миллисекундах):
-    var phone_delay = 1000; // Для смартфонов и ПК (1.5 секунды)
-    var tv_delay    = 4500; // Для телевизоров и приставок (4.5 секунды)
+    // ЕДИНОЕ ВРЕМЯ ЗАДЕРЖКИ ДЛЯ ВСЕХ УСТРОЙСТВ (4500 = 4.5 секунды)
+    var delay_time = 4000; 
     
     var executed = false;
+
+    function reloadStartPage() {
+        var active = Lampa.Activity.active();
+        
+        // Проверяем: есть ли страница и не ушли ли мы далеко в меню
+        if (active && Lampa.Activity.history && Lampa.Activity.history.length <= 1) {
+            console.log('SyncRefresh: 4.5 секунды прошло, перерисовываем страницу...');
+            Lampa.Activity.replace(active);
+        } else {
+            console.log('SyncRefresh: Пользователь уже в другом каталоге, обновление отменено.');
+        }
+    }
 
     function init() {
         if (executed) return;
         executed = true;
 
-        // Запоминаем стартовую страницу, которая открылась при запуске
-        var start_page = Lampa.Activity.active();
-        if (!start_page) return;
-
-        // Определяем тип устройства (Телевизор/Приставка или Смартфон/ПК)
-        var is_tv = Lampa.Platform.tv() || /tv|tizen|webos|bravia|box|shield/i.test(navigator.userAgent.toLowerCase());
-        var delay = is_tv ? tv_delay : phone_delay;
-
-        console.log('SyncRefresh: Устройство:', is_tv ? 'ТВ/Приставка' : 'Смартфон', '| Задержка:', delay, 'мс');
-
-        // Запускаем таймер
-        setTimeout(function() {
-            var current_page = Lampa.Activity.active();
-
-            // ПРЕДОХРАНИТЕЛЬ: Обновляем только если пользователь всё ещё на стартовой странице
-            if (current_page === start_page) {
-                console.log('SyncRefresh: Время пришло, перерисовываем страницу...');
-                Lampa.Activity.replace(start_page);
-            } else {
-                console.log('SyncRefresh: Пользователь ушел с главной страницы, обновление отменено.');
-            }
-        }, delay);
+        console.log('SyncRefresh: Таймер на 4.5 секунды запущен...');
+        setTimeout(reloadStartPage, delay_time);
     }
 
-    // Надежный цикл ожидания загрузки интерфейса (для форков)
+    // Надежный цикл ожидания загрузки интерфейса
     function checkLampaReady() {
         if (window.appready) {
             init();
