@@ -82,7 +82,7 @@
 })();
 /* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
 
-/* --- СТАРТ БЛОКА: Тест #4 - Прямое добавление карточек без вкладок --- */
+/* --- СТАРТ БЛОКА: Тест #5 - Идеальный экран + Меню из 4 пунктов --- */
 (function () {
     'use strict';
 
@@ -90,65 +90,103 @@
         if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
     }
 
-    // Запускаем фоновую проверку раз в секунду
+    // Быстрый таймер (300 мс), чтобы не было мигания
     setInterval(function() {
         var active = window.Lampa && window.Lampa.Activity && window.Lampa.Activity.active();
         
-        // Проверяем, что мы зашли на экран mytorrents (или torrents)
         if (active && (String(active.component).toLowerCase() === 'mytorrents' || String(active.component).toLowerCase() === 'torrents')) {
             
-            // Если мы еще не добавили наш блок с карточками на этот экран
             if ($('.my-local-torrents-container').length === 0) {
                 
                 var list = window.LocalTorrentStorage ? window.LocalTorrentStorage.get() : [];
                 
-                // Ищем самый верхний (активный) экран в Лампе
                 var screen = $('.activity').last();
                 if (screen.length === 0) screen = $('body');
 
-                // Создаем наш блок
-                var my_list = $('<div class="my-local-torrents-container" style="width: 100%; padding: 25px; background: rgba(0,0,0,0.4); border-bottom: 2px solid #e50914; z-index: 99999; position: relative;">' + 
-                                '<div style="font-size: 24px; font-weight: bold; color: #fff; margin-bottom: 15px;">Мои сохраненные торренты (' + list.length + ')</div>' +
-                                '<div class="my-cards-grid" style="display: flex; flex-wrap: wrap; gap: 15px;"></div>' +
+                var target = screen.find('.scroll__body, .activity__body').first();
+                if (target.length === 0) target = screen;
+
+                // СКРЫВАЕМ стандартный мусор Лампы (пустые иконки и кнопку "Обновить")
+                target.children().hide();
+
+                // Создаем наш чистовой блок
+                var my_list = $('<div class="my-local-torrents-container" style="width: 100%; min-height: 80vh; padding: 30px; background: #111; z-index: 99999; position: relative;">' + 
+                                '<div style="font-size: 26px; font-weight: bold; color: #fff; margin-bottom: 20px; border-bottom: 2px solid #e50914; padding-bottom: 10px;">Мои сохраненные торренты (' + list.length + ')</div>' +
+                                '<div class="my-cards-grid" style="display: flex; flex-wrap: wrap; gap: 20px;"></div>' +
                                 '</div>');
                 
                 var grid = my_list.find('.my-cards-grid');
 
                 if (list.length === 0) {
-                    // Если список пуст, выводим подсказку
-                    grid.append('<div style="color: #aaa; font-size: 16px; padding: 10px;">Список пуст. Сделайте долгое нажатие на любую раздачу в фильме и нажмите «Сохранить в локальные»!</div>');
+                    grid.append('<div style="color: #888; font-size: 18px; padding: 20px;">Список пуст. Сохраняйте раздачи долгим нажатием в парсере!</div>');
                 } else {
-                    // Если торренты есть — рисуем карточки
-                    showNoty('Отображаем ваши торренты (' + list.length + ')');
-
                     list.slice().reverse().forEach(function(item) {
                         var date_str = new Date(item.date).toLocaleDateString();
-                        var card = $('<div class="my-local-torrent-card" style="flex: 1 1 300px; background: #1f1f1f; border: 2px solid #555; padding: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s;">' +
-                                        '<div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 8px;">' + (item.movie_title || 'Без названия') + '</div>' +
-                                        '<div style="font-size: 12px; color: #aaa; margin-bottom: 8px;">Добавлено: ' + date_str + '</div>' +
-                                        '<div style="font-size: 11px; color: #777; background: #111; padding: 8px; border-radius: 4px; word-break: break-all;">' + String(item.magnet).substring(0, 45) + '...</div>' +
+                        var card = $('<div class="my-local-torrent-card focus" tabindex="0" style="flex: 1 1 320px; background: #1a1a1a; border: 2px solid #444; padding: 20px; border-radius: 10px; cursor: pointer; transition: 0.2s; outline: none;">' +
+                                        '<div style="font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px;">' + (item.movie_title || 'Без названия') + '</div>' +
+                                        '<div style="font-size: 14px; color: #888; margin-bottom: 12px;">Добавлено: ' + date_str + '</div>' +
+                                        '<div style="font-size: 12px; color: #aaa; background: #000; padding: 10px; border-radius: 6px; word-break: break-all; border: 1px solid #222;">' + String(item.magnet).substring(0, 45) + '...</div>' +
                                      '</div>');
                         
-                        // Цвет рамки при наведении пультом/мышкой
-                        card.on('mouseenter', function() { $(this).css('border-color', '#e50914'); });
-                        card.on('mouseleave', function() { $(this).css('border-color', '#555'); });
+                        // Подсветка для пульта и мышки
+                        card.on('mouseenter focus', function() { $(this).css({ 'border-color': '#e50914', 'transform': 'scale(1.02)' }); });
+                        card.on('mouseleave blur', function() { $(this).css({ 'border-color': '#444', 'transform': 'scale(1)' }); });
 
-                        // Клик на карточку (пока просто уведомление)
+                        // НАЖАТИЕ НА КАРТОЧКУ - ВЫЗОВ МЕНЮ ИЗ 4 ПУНКТОВ
                         card.on('click', function() {
-                            showNoty('Клик по фильму: ' + item.movie_title);
+                            if (window.Lampa && window.Lampa.Select) {
+                                Lampa.Select.show({
+                                    title: item.movie_title || 'Управление раздачей',
+                                    items: [
+                                        { title: '▶ Воспроизвести', action: 'play' },
+                                        { title: '🎬 Открыть карточку фильма', action: 'card' },
+                                        { title: '🔄 Сменить раздачу (в парсер)', action: 'parser' },
+                                        { title: '🗑 Удалить из сохраненных', action: 'delete' }
+                                    ],
+                                    onSelect: function(m) {
+                                        if (m.action === 'play') {
+                                            // Запуск торрента через плеер Лампы
+                                            if (window.Lampa.Torrent && window.Lampa.Torrent.start) {
+                                                window.Lampa.Torrent.start({ magnet: item.magnet, title: item.movie_title });
+                                            } else {
+                                                showNoty('Запуск магнета...');
+                                                window.location.href = item.magnet;
+                                            }
+                                        } else if (m.action === 'card') {
+                                            // Переход в карточку фильма
+                                            if (item.movie_id) {
+                                                Lampa.Activity.push({ component: 'full', id: item.movie_id, method: 'tmdb' });
+                                            } else {
+                                                showNoty('Ошибка: ID фильма не был сохранен');
+                                            }
+                                        } else if (m.action === 'parser') {
+                                            // Переход к выбору раздач
+                                            if (item.movie_id) {
+                                                Lampa.Activity.push({ component: 'torrents', id: item.movie_id, title: item.movie_title });
+                                            } else {
+                                                showNoty('Ошибка: ID фильма не был сохранен');
+                                            }
+                                        } else if (m.action === 'delete') {
+                                            // Удаление
+                                            if (window.LocalTorrentStorage && window.LocalTorrentStorage.remove) {
+                                                window.LocalTorrentStorage.remove(item.magnet);
+                                                showNoty('Удалено!');
+                                                card.fadeOut(300, function() { $(this).remove(); });
+                                            }
+                                        }
+                                    }
+                                });
+                            }
                         });
 
                         grid.append(card);
                     });
                 }
 
-                // Встраиваем наш блок в самое начало экрана (над надписью «Ваши торренты»)
-                var target = screen.find('.scroll__body, .activity__body').first();
-                if (target.length === 0) target = screen;
-                
+                // Добавляем наш экран
                 target.prepend(my_list);
             }
         }
-    }, 1000);
+    }, 300);
 })();
-/* --- КОНЕЦ БЛОКА: Тест #4 - Прямое добавление карточек без вкладок --- */
+/* --- КОНЕЦ БЛОКА: Тест #5 - Идеальный экран + Меню из 4 пунктов --- */
