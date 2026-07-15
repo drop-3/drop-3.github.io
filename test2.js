@@ -1,78 +1,90 @@
-/* --- СТАРТ БЛОКА: Истинный минимализм (в стиле твоего разработчика) --- */
 (function () {
-    // Получение сохранений из памяти ТВ
+    'use strict';
+
+    // 1. Достаем наши сохранения из памяти ТВ
     function getSaves() {
-        try { return JSON.parse(localStorage.getItem('lampa_saves') || '[]'); } 
+        try { return JSON.parse(localStorage.getItem('lampa_my_torrents') || '[]'); } 
         catch(e) { return []; }
     }
 
-    // 1. Кнопка "Сохранить" в меню (работает нативно)
-    var timerSelect = setInterval(function() {
-        if (window.Lampa && window.Lampa.Select) {
-            clearInterval(timerSelect); // Нашли меню — убиваем таймер
+    // 2. Кнопка "Сохранить в Лампу" в меню раздачи (надежная, уже проверенная)
+    if (window.Lampa && window.Lampa.Select) {
+        var old_show = Lampa.Select.show;
+        Lampa.Select.show = function(params) {
+            var el = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
+            var d = el.data('injected_torrent_data') || el.data('element') || el.data('item') || el.data('torrent') || el.data('data') || params.data;
+            var magnet = '', hash = '';
             
-            var old_show = Lampa.Select.show;
-            Lampa.Select.show = function(params) {
-                var el = $('.focus, .selector.focus').closest('[data-element], [data-item], .selector');
-                var d = el.data('element') || el.data('item') || el.data('torrent') || params.data;
-                var mag = d ? (d.magnet || '') : '';
-                if (!mag && d && (d.hash || d.btih)) mag = 'magnet:?xt=urn:btih:' + (d.hash || d.btih);
+            if (d) {
+                hash = d.hash || d.info_hash || d.infoHash || d.btih || '';
+                if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
+                else if (d.magnet) magnet = d.magnet;
+            }
+            
+            if (magnet) {
+                params.items.push({ title: '💾 Сохранить в Лампу', action: 'save_local' });
+                var old_onSelect = params.onSelect;
+                
+                params.onSelect = function(item) {
+                    if (item && item.action === 'save_local') {
+                        var list = getSaves();
+                        var clean_hash = hash || magnet.replace(/.*btih:([a-zA-Z0-9]+).*/i, '$1');
+                        
+                        // Проверка на дубликаты
+                        if (list.some(function(i) { return i.magnet === magnet || (i.hash && i.hash === clean_hash); })) {
+                            if (window.Lampa && Lampa.Noty) Lampa.Noty.show('⚠️ Уже есть в сохраненных!');
+                            return;
+                        }
 
-                if (mag) {
-                    params.items.push({ title: '💾 Сохранить', action: 'my_save' });
-                    var old_sel = params.onSelect;
-                    
-                    params.onSelect = function(a) {
-                        if (a && a.action === 'my_save') {
-                            var list = getSaves();
-                            var act = Lampa.Activity.active() ? (Lampa.Activity.active().activity || {}) : {};
-                            
-                            if (!list.some(function(x){ return x.magnet === mag; })) {
-                                list.unshift({
-                                    title: act.title || act.name || 'Сохраненный торрент',
-                                    img: act.img || act.poster || '',
-                                    magnet: mag,
-                                    hash: mag.replace(/.*btih:([a-z0-9]+).*/i, '$1'),
-                                    stat_string: '💾 Из памяти ТВ'
-                                });
-                                localStorage.setItem('lampa_saves', JSON.stringify(list));
-                                if (Lampa.Noty) Lampa.Noty.show('💾 Сохранено!');
-                            } else {
-                                if (Lampa.Noty) Lampa.Noty.show('⚠️ Уже есть в списке!');
-                            }
-                        } else if (old_sel) old_sel(a);
-                    };
-                }
-                return old_show(params);
+                        var act = Lampa.Activity.active() ? (Lampa.Activity.active().activity || {}) : {};
+                        
+                        // Сохраняем название, постер и магнет (то, про что и говорилось в подсказке)
+                        list.unshift({
+                            title: act.title || act.name || d.title || 'Без названия',
+                            poster: act.poster || act.img || act.backdrop || '',
+                            img: act.img || act.poster || act.backdrop || '',
+                            hash: clean_hash,
+                            magnet: magnet,
+                            stat_string: '💾 Сохранено в ТВ'
+                        });
+                        
+                        localStorage.setItem('lampa_my_torrents', JSON.stringify(list));
+                        if (window.Lampa && Lampa.Noty) Lampa.Noty.show('💾 Сохранено в Лампу!');
+                    } else if (old_onSelect) {
+                        old_onSelect(item);
+                    }
+                };
+            }
+            return old_show(params);
+        };
+    }
+
+    // 3. Добавляем наши фильмы к списку торрент-клиента
+    function attachToClient() {
+        // Проверяем оба варианта имени объекта в Лампе
+        var client = window.Lampa && (Lampa.Torrserver || Lampa.Torserver);
+        
+        if (client && client.list && !client._my_list_hook) {
+            client._my_list_hook = true;
+            
+            var orig_list = client.list;
+            client.list = function(onSuccess, onError) {
+                var saves = getSaves();
+                
+                orig_list(function(server_items) {
+                    // Склеиваем: сначала наши сохранения, потом то, что в клиенте
+                    onSuccess(saves.concat(server_items || []));
+                }, function(err) {
+                    // Если клиент выдал ошибку — всё равно показываем наши сохранения
+                    if (saves.length > 0) onSuccess(saves);
+                    else if (onError) onError(err);
+                });
             };
         }
-    }, 500);
+    }
 
-    // 2. Подмена каталога (ТОТ САМЫЙ стиль: ждем appready и отключаемся)
-    var thisInterval = setInterval(function() {
-        if (window.appready && window.Lampa) {
-            // Берем правильное имя модуля (Torrserve или Torserver)
-            var TS = Lampa.Torrserve || Lampa.Torserver;
-            
-            if (TS && TS.list && !TS._hooked) {
-                TS._hooked = true;
-                var old_list = TS.list;
-                
-                // Подмешиваем наши сохранения из памяти к ответу сервера
-                TS.list = function(onSuccess, onError) {
-                    var saves = getSaves();
-                    old_list(function(server_items) {
-                        onSuccess(saves.concat(server_items || []));
-                    }, function(err) {
-                        if (saves.length > 0) onSuccess(saves);
-                        else if (onError) onError(err);
-                    });
-                };
-                
-                clearInterval(thisInterval); // Дело сделано — убиваем таймер
-            }
-        }
-    }, 500);
+    // Запускаем проверку при старте и через секунду, чтобы точно поймать загрузку клиента
+    attachToClient();
+    setTimeout(attachToClient, 1000);
 
 })();
-/* --- КОНЕЦ БЛОКА --- */
