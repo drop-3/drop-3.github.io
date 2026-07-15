@@ -1,4 +1,4 @@
-/* --- СТАРТ БЛОКА: Тест #6 - Чистый минималистичный плагин --- */
+/* --- СТАРТ БЛОКА: Тест #7 - Стабильный минималистичный плагин --- */
 (function () {
     'use strict';
 
@@ -25,7 +25,7 @@
         }
     };
 
-    // 2. Кнопка "Сохранить" в контекстном меню (работает нативно через Lampa.Select)
+    // 2. Кнопка "Сохранить" в контекстном меню (работает нативно)
     if (window.Lampa && window.Lampa.Select) {
         var orig_show = Lampa.Select.show;
         Lampa.Select.show = function (params) {
@@ -65,41 +65,58 @@
         };
     }
 
-    // 3. Добавление кнопки в раздел "Торренты" (БЕЗ ТАЙМЕРОВ И БУЛЬДОЗЕРОВ)
-    Lampa.Listener.follow('activity', function (e) {
-        if (e.type === 'start' && (String(e.component).toLowerCase() === 'mytorrents' || String(e.component).toLowerCase() === 'torrents')) {
-            
-            // Небольшая задержка, чтобы Лампа создала контейнер экрана
-            setTimeout(function() {
-                var screen = $('.activity.active .activity__body, .activity.active').first();
-                if (screen.length === 0) return;
+    // 3. Умный фоновый инжектор кнопки (без лагов и дубликатов)
+    var showing_local = false;
 
-                var list = Storage.get();
-
-                // Создаем кнопку с классом "selector" — пульт ТВ подхватит её автоматически!
-                var btn = $('<div class="selector card" style="padding: 15px; text-align: center; background: #222; margin: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; border: 1px solid #444;">' +
-                            '📁 Сохраненные раздачи (' + list.length + ')' +
-                            '</div>');
-                
-                btn.on('click', function() {
-                    showNativeList(screen, list);
-                });
-
-                // Вставляем кнопку в самый верх
-                screen.prepend(btn);
-                
-                // Говорим Лампе пересчитать элементы для пульта
-                if (Lampa.Controller) Lampa.Controller.toggle('content');
-            }, 600);
-        }
-    });
-
-    // 4. Отрисовка списка через стандартные классы Лампы
-    function showNativeList(screen, list) {
-        screen.empty(); // Очищаем экран от мусора
+    setInterval(function() {
+        var active = window.Lampa && window.Lampa.Activity && window.Lampa.Activity.active();
         
+        // Если мы на экране торрентов
+        if (active && (String(active.component).toLowerCase() === 'mytorrents' || String(active.component).toLowerCase() === 'torrents')) {
+            
+            // Если мы сейчас НЕ показываем наш локальный список
+            if (!showing_local) {
+                var screen = $('.activity').last();
+                
+                // Если экрана еще нет или кнопка уже добавлена — ничего не делаем
+                if (screen.length > 0 && screen.find('.local-torrents-btn').length === 0) {
+                    var list = Storage.get();
+
+                    // Создаем нативную кнопку-карточку
+                    var btn = $('<div class="selector card local-torrents-btn" style="padding: 15px; text-align: center; background: #222; margin: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; border: 2px solid #e50914; cursor: pointer;">' +
+                                '📁 Сохраненные раздачи (' + list.length + ')' +
+                                '</div>');
+                    
+                    btn.on('click', function() {
+                        showing_local = true; // Запрещаем инжектору перерисовывать кнопку
+                        showNativeList(screen, list);
+                    });
+
+                    // Вставляем в тело экрана
+                    var body = screen.find('.scroll__body, .activity__body').first();
+                    if (body.length === 0) body = screen;
+                    
+                    body.prepend(btn);
+                    
+                    // Обновляем пульт
+                    if (Lampa.Controller) Lampa.Controller.toggle('content');
+                }
+            }
+        } else {
+            // Если вышли из раздела торрентов — сбрасываем статус
+            showing_local = false;
+        }
+    }, 500);
+
+    // 4. Отрисовка списка сохраненных раздач
+    function showNativeList(screen, list) {
+        var body = screen.find('.scroll__body, .activity__body').first();
+        if (body.length === 0) body = screen;
+
+        body.empty(); // Полностью очищаем экран от заглушек TorrServe и нашей кнопки
+
         if (list.length === 0) {
-            screen.append('<div style="text-align: center; padding: 50px; font-size: 20px; color: #888;">Список пуст. Сохраняйте раздачи в фильмах!</div>');
+            body.append('<div style="text-align: center; padding: 50px; font-size: 20px; color: #888;">Список пуст. Сохраняйте раздачи в фильмах!</div>');
             return;
         }
 
@@ -108,8 +125,7 @@
         list.slice().reverse().forEach(function(item) {
             var date_str = new Date(item.date).toLocaleDateString();
             
-            // Класс "selector" делает карточку активной для пульта!
-            var card = $('<div class="selector card" style="padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center;">' +
+            var card = $('<div class="selector card" style="padding: 15px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">' +
                          '<div style="overflow: hidden; padding-right: 15px;">' +
                              '<div style="font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 5px;">' + (item.title || 'Без названия') + '</div>' +
                              '<div style="font-size: 12px; color: #777;">Добавлено: ' + date_str + ' | ' + String(item.magnet).substring(0, 35) + '...</div>' +
@@ -117,7 +133,6 @@
                          '<div style="color: #e50914; font-size: 24px; font-weight: bold;">⋮</div>' +
                          '</div>');
 
-            // При клике открываем родное меню выбора Лампы
             card.on('click', function() {
                 Lampa.Select.show({
                     title: item.title || 'Управление',
@@ -138,7 +153,7 @@
                             else Lampa.Noty.show('ID фильма не был сохранен');
                         } else if (m.action === 'del') {
                             Storage.remove(item.magnet);
-                            showNativeList(screen, Storage.get()); // Обновляем список сразу
+                            showNativeList(screen, Storage.get()); // Мгновенно обновляем список
                         }
                     }
                 });
@@ -147,11 +162,10 @@
             container.append(card);
         });
 
-        screen.append(container);
+        body.append(container);
         
-        // Говорим пульту переключить фокус на наш новый список
         if (Lampa.Controller) Lampa.Controller.toggle('content');
     }
 
 })();
-/* --- КОНЕЦ БЛОКА: Тест #6 - Чистый минималистичный плагин --- */
+/* --- КОНЕЦ БЛОКА: Тест #7 - Стабильный минималистичный плагин --- */
