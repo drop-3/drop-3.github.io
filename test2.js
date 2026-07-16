@@ -1,81 +1,138 @@
-```javascript
-/**
- * Плагин для Lampa (Кино) - Локальное сохранение торрентов
- * Назначение: Позволяет сохранять раздачи и видеть их в разделе "Торренты" даже при недоступности на ТоррСервере.
- */
+(function() {
+  const KEY = 'lampa_saved_torrents'; // ключ хранилища
 
-// 1. Инициализация плагина
-const Plugin = {
-    name: 'local_torrents_save',
-    version: '1.0.0',
-    
-    // Функция, которая вызывается при инициализации
-    start: function() {
-        console.log('Плагин локального сохранения запущен');
-        
-        // Переопределяем метод получения данных для раздела "Торренты"
-        // Важно: точное имя метода может зависеть от версии Lampa, но это стандартная точка расширения.
-        if (typeof Lampa.Torrents !== 'undefined') {
-            this._originalTorrents = Lampa.Torrents.prototype.select;
-            
-            // Сохраняем оригинальный метод, чтобы не сломать другие разделы
-            Lampa.Torrents.prototype.select = function() {
-                // Вызываем оригинальный метод
-                this._originalTorrents.apply(this, arguments);
-                
-                // Добавляем нашу логику после получения данных
-                this.updateTorrentsList = function() {
-                    console.log('Обновление списка торрентов с фильтром сохраненных');
-                    
-                    // Получаем список сохраненных торрентов из LocalStorage
-                    const savedTorrents = JSON.parse(Lampa.Storage.get('torrents_local_list', '[]'));
-                    
-                    // Если список пустой, ничего не делаем
-                    if (!savedTorrents || savedTorrents.length === 0) {
-                        return;
-                    }
-                    
-                    // Ищем сохраненные раздачи в текущем списке
-                    // Мы добавим их в начало списка, чтобы они были первыми
-                    const newTorrents = [];
-                    
-                    savedTorrents.forEach(function(savedItem) {
-                        // Проверяем, есть ли такая раздача уже в основном списке
-                        // (по ID или имени, в зависимости от структуры данных)
-                        const exists = this.find(function(item) {
-                            return item.name === savedItem.name || item.id === savedItem.id;
-                        });
-                        
-                        // Если не найдена, добавляем в новый список
-                        if (!exists) {
-                            newTorrents.push(savedItem);
-                        }
-                    }, this);
-                    
-                    // Если есть новые сохраненные раздачи, добавляем их
-                    if (newTorrents.length > 0) {
-                        console.log('Добавлены сохраненные раздачи:', newTorrents);
-                        // Методы добавления зависят от внутренней реализации Lampa,
-                        // здесь мы просто логируем. Для полной интеграции нужно смотреть методы add().
-                    }
-                };
-                
-                // Вызываем обновление списка
-                this.updateTorrentsList();
-            };
-        }
-    },
-    
-    // Функция, которая вызывается при остановке
-    stop: function() {
-        console.log('Плагин остановлен');
-        // Восстанавливаем оригинальный метод, если нужно
-        if (typeof Lampa.Torrents !== 'undefined' && this._originalTorrents) {
-            Lampa.Torrents.prototype.select = this._originalTorrents;
-        }
+  // Загрузить сохранённые раздачи
+  function load() {
+    try { return JSON.parse(Lampa.Storage.get(KEY, '[]')); } catch(e) { return []; }
+  }
+
+  // Сохранить массив
+  function persist(list) {
+    Lampa.Storage.set(KEY, JSON.stringify(list));
+  }
+
+  // Проверить дубликат по hash
+  function findSaved(hash) {
+    return load().find(i => i.torrent_hash === hash);
+  }
+
+  // Основная функция сохранения
+  function addTorrent(entry) {
+    const list = load();
+    if (list.some(i => i.torrent_hash === entry.torrent_hash)) {
+      Lampa.Notific.show('Эта раздача уже сохранена');
+      return false;
     }
-};
+    list.unshift(entry);
+    persist(list);
+    Lampa.Notific.show('Раздача сохранена');
+    return true;
+  }
 
-// Регистрируем плагин
-Lampa.Plugin.register(Plugin.name, Plugin);
-```
+  // Удаление
+  function remove(hash) {
+    const list = load().filter(i => i.torrent_hash !== hash);
+    persist(list);
+    Lampa.Notific.show('Раздача удалена');
+  }
+
+  // Собрать объект для сохранения
+  function buildEntry(torrent, cardData) {
+    return {
+      torrent_hash:   torrent.hash || '',
+      torrent_url:    torrent.url || '',
+      torrent_title:  torrent.title || '',
+      source:         torrent.source || '',
+      movie_id:       cardData ? cardData.id : '',
+      saved_at:       Date.now(),
+      // копия карточки (облегчённая)
+      card: {
+        id:       cardData ? cardData.id : '',
+        title:    cardData ? cardData.title : '',
+        poster:   cardData ? cardData.poster : '',
+        year:     cardData ? cardData.year : '',
+        type:     cardData ? cardData.type : '',
+      }
+    };
+  }
+// Пункт в меню раздачи (долгое нажатие)
+  Lampa.Component.add('torrent:context', function (data, cb) {
+    let torrent = data.torrent;
+    let card = data.card || (data.data ? data.data.movie : null) || (data.movie ? data.movie.card : null);
+    let entry = buildEntry(torrent, card);
+    let saved = findSaved(torrent.hash);
+
+    cb([{
+      title: saved ? 'Уже в лампе' : 'Сохранить в лампу',
+      icon: 'bookmark',
+      onClick: () => {
+        if (saved) {
+          Lampa.Notific.show('Раздача уже сохранена');
+        } else {
+          addTorrent(entry);
+        }
+      }
+    }]);
+  });
+
+  // Раздел в главном меню "Сохранённые раздачи"
+  Lampa.Component.add('main:menu', function (data, cb) {
+    data.push({
+      title: 'Мои раздачи',
+      icon: 'bookmark',
+      onClick: (e) => {
+        let list = load();
+        if (!list.length) {
+          Lampa.Notific.show('Нет сохранённых раздач');
+          return;
+        }
+
+        Lampa.Activity.push({
+          url: '',
+          title: 'Мои раздачи',
+          component: 'category',
+          page: 1,
+          card: (function() {
+            var cards = list.map(item => ({
+              id: item.movie_id || item.torrent_hash,
+              title: item.card ? item.card.title : item.torrent_title,
+              poster: item.card ? item.card.poster : '',
+              year: item.card ? item.card.year : '',
+              type: item.card ? item.card.type : 'movie',
+              context: [{
+                title: 'Открыть карточку',
+                icon: 'info',
+                onClick: () => {
+                  if (item.movie_id) {
+                    Lampa.Activity.push({
+                      url: '',
+                      title: item.card ? item.card.title : '',
+                      component: 'full',
+                      id: item.movie_id,
+                      type: item.card ? item.card.type : ''
+                    });
+                  }
+                }
+              },{
+                title: 'Удалить',
+                icon: 'delete',
+                onClick: () => {
+                  remove(item.torrent_hash);
+                  Lampa.Activity.back();
+                }
+              }]
+            }));
+            return { results: cards };
+          })()
+        });
+      }
+    });
+    cb(data);
+  });
+
+  // Функция "переключить раздачу" — загрузка торрента и старт плеера
+  function switchTorrent(url, title) {
+    Lampa.Torrent.open(url, title);
+  }
+
+})();
