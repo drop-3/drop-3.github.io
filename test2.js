@@ -1,4 +1,4 @@
-/* --- СТАРТ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
+/* --- СТАРТ БЛОКА: Тест №2 (Исправленный запуск) --- */
 (function () {
     'use strict';
 
@@ -7,14 +7,23 @@
         if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
     }
 
-    // 2. Хранилище
+    // 2. Хранилище (Заменено на безопасный ES5 цикл, чтобы не было ошибок на старых ТВ)
     window.LocalTorrentStorage = {
         save: function(item) {
             var saved = this.get();
-            if (saved.find(function(t) { return t.magnet === item.magnet; })) {
+            
+            var exists = false;
+            for (var i = 0; i < saved.length; i++) {
+                if (saved[i].magnet === item.magnet) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (exists) {
                 showNoty('Уже сохранено!');
                 return;
             }
+
             saved.push({
                 movie_id: item.movie_id,
                 movie_title: item.movie_title,
@@ -32,14 +41,13 @@
         }
     };
 
-    // 3. Улучшенный поиск данных (как в твоем рабочем коде)
+    // 3. Улучшенный поиск данных
     function findMagnetInElement() {
         var magnet = '';
         var f = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
         var d = f.data('injected_torrent_data') || f.data('element') || f.data('item') || f.data('torrent') || f.data('data');
         
         if (d) {
-            // Проверяем разные форматы хранения магнита
             var hash = d.hash || d.info_hash || d.infoHash || d.btih;
             if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
             else if (d.magnet) magnet = d.magnet;
@@ -48,36 +56,44 @@
         return magnet;
     }
 
-    // 4. Интеграция
-    if (window.Lampa && window.Lampa.Select) {
-        var orig_show = Lampa.Select.show;
-        Lampa.Select.show = function (params) {
-            var magnet = findMagnetInElement();
+    // 4. Интеграция (ДОБАВЛЕН ТАЙМЕР ОЖИДАНИЯ)
+    var timer = setInterval(function() {
+        // Скрипт ждет, пока Лампа 100% прогрузит меню Select
+        if (window.Lampa && window.Lampa.Select && window.Lampa.Select.show) {
+            clearInterval(timer); // Лампа загрузилась, выключаем таймер
 
-            if (magnet) {
-                params.items.push({
-                    title: 'Сохранить в локальные',
-                    save_magnet: magnet,
-                    movie_id: (window.Lampa.Activity.active() ? window.Lampa.Activity.active().activity.id : null),
-                    movie_title: (window.Lampa.Activity.active() ? window.Lampa.Activity.active().activity.title : 'Неизвестно')
-                });
+            var orig_show = Lampa.Select.show;
+            Lampa.Select.show = function (params) {
+                var magnet = findMagnetInElement();
 
-                var orig_onSelect = params.onSelect;
-                params.onSelect = function (item) {
-                    if (item && item.save_magnet) {
-                        window.LocalTorrentStorage.save({
-                            magnet: item.save_magnet,
-                            movie_id: item.movie_id,
-                            movie_title: item.movie_title
-                        });
-                    } else if (orig_onSelect) {
-                        orig_onSelect(item);
-                    }
-                };
-            }
-            
-            return orig_show(params);
-        };
-    }
+                if (magnet) {
+                    var active = window.Lampa.Activity.active();
+                    var act_data = active ? (active.activity || {}) : {};
+
+                    params.items.push({
+                        title: 'Сохранить в локальные',
+                        save_magnet: magnet,
+                        movie_id: act_data.id || null,
+                        movie_title: act_data.title || act_data.name || 'Неизвестно'
+                    });
+
+                    var orig_onSelect = params.onSelect;
+                    params.onSelect = function (item) {
+                        if (item && item.save_magnet) {
+                            window.LocalTorrentStorage.save({
+                                magnet: item.save_magnet,
+                                movie_id: item.movie_id,
+                                movie_title: item.movie_title
+                            });
+                        } else if (orig_onSelect) {
+                            orig_onSelect(item);
+                        }
+                    };
+                }
+                
+                return orig_show.call(this, params);
+            };
+        }
+    }, 500); // Повторяет проверку каждые полсекунды, пока не сработает
 })();
-/* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
+/* --- КОНЕЦ БЛОКА: Тест №2 --- */
