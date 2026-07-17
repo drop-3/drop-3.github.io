@@ -1,4 +1,4 @@
-/* --- РАБОЧИЙ КОД: Твой Тест №2 + Подключение к списку --- */
+/* --- СТАРТ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
 (function () {
     'use strict';
 
@@ -7,7 +7,7 @@
         if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show(msg);
     }
 
-    // 2. Хранилище (Твой оригинальный код)
+    // 2. Хранилище
     window.LocalTorrentStorage = {
         save: function(item) {
             var saved = this.get();
@@ -32,13 +32,14 @@
         }
     };
 
-    // 3. Поиск данных (Твой оригинальный код)
+    // 3. Улучшенный поиск данных (как в твоем рабочем коде)
     function findMagnetInElement() {
         var magnet = '';
         var f = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
         var d = f.data('injected_torrent_data') || f.data('element') || f.data('item') || f.data('torrent') || f.data('data');
         
         if (d) {
+            // Проверяем разные форматы хранения магнита
             var hash = d.hash || d.info_hash || d.infoHash || d.btih;
             if (hash) magnet = 'magnet:?xt=urn:btih:' + hash.trim();
             else if (d.magnet) magnet = d.magnet;
@@ -47,7 +48,7 @@
         return magnet;
     }
 
-    // 4. Интеграция кнопки (Твой оригинальный код)
+    // 4. Интеграция
     if (window.Lampa && window.Lampa.Select) {
         var orig_show = Lampa.Select.show;
         Lampa.Select.show = function (params) {
@@ -74,34 +75,9 @@
                     }
                 };
             }
+            
             return orig_show(params);
         };
     }
-
-    // 5. ИНТЕГРАЦИЯ В СПИСОК (Добавление сохраненных в стандартный каталог)
-    // Ждем, пока загрузится TorrServer, и подменяем метод list
-    var timer = setInterval(function() {
-        var TS = window.Lampa && (Lampa.TorrServer || Lampa.Torrserve);
-        if (TS && TS.list) {
-            clearInterval(timer);
-            var originalList = TS.list;
-            TS.list = function(params, success, error) {
-                // Обработка аргументов (бывают разные версии Лампы)
-                var onSucc = typeof params === 'function' ? params : success;
-                var onErr = typeof params === 'function' ? success : error;
-                var p = typeof params === 'function' ? {} : params;
-
-                originalList.call(this, p, function(items) {
-                    var local = window.LocalTorrentStorage.get();
-                    // Превращаем наши сохраненные в формат Lampa
-                    var formatted = local.map(function(t) {
-                        return { title: t.movie_title, magnet: t.magnet, stat_string: '💾 Сохраненный' };
-                    });
-                    // Склеиваем
-                    onSucc(formatted.concat(items || []));
-                }, onErr);
-            };
-        }
-    }, 500);
-
 })();
+/* --- КОНЕЦ БЛОКА: Тест №2 - Улучшенный поиск данных и добавление кнопки --- */
