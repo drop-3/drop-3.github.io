@@ -1,60 +1,106 @@
+/* --- СТАРТ БЛОКА: Тест №3 (Радар фокуса) --- */
 (function () {
     'use strict';
 
+    // 1. Хранилище
+    window.LocalTorrentStorage = {
+        save: function(item) {
+            var saved = this.get();
+            var exists = false;
+            for (var i = 0; i < saved.length; i++) {
+                if (saved[i].magnet === item.magnet) { exists = true; break; }
+            }
+            if (exists) {
+                if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show('⚠️ Уже сохранено!');
+                return;
+            }
+            saved.push({
+                movie_id: item.movie_id,
+                movie_title: item.movie_title,
+                magnet: item.magnet,
+                date: Date.now()
+            });
+            localStorage.setItem('lampa_local_torrents', JSON.stringify(saved));
+            if (window.Lampa && window.Lampa.Noty) window.Lampa.Noty.show('💾 Сохранено в память!');
+        },
+        get: function() {
+            try {
+                var data = localStorage.getItem('lampa_local_torrents');
+                return data ? JSON.parse(data) : [];
+            } catch (e) { return []; }
+        }
+    };
+
+    // 2. РАДАР ФОКУСА (Запоминает раздачу до открытия меню)
+    var lastTorrentData = null;
+    setInterval(function() {
+        var f = $('.focus');
+        if (f.length > 0) {
+            // Если фокус ушел на всплывающее меню, ничего не делаем (сохраняем память о раздаче)
+            if (f.closest('.select, .select__item, .layer, .modal').length > 0) {
+                return;
+            }
+
+            var el = f.closest('.selector, [data-element], [data-item]');
+            var d = el.data('injected_torrent_data') || el.data('element') || el.data('item') || el.data('torrent') || el.data('data') || (el[0] ? el[0].__data : null);
+            
+            // Если пульт стоит на раздаче - запоминаем её!
+            if (d && (d.hash || d.btih || d.info_hash || (typeof d.magnet === 'string' && d.magnet.indexOf('magnet:') === 0))) {
+                lastTorrentData = d;
+            } else {
+                // Если пульт ушел на обычную кнопку (например "Смотреть") - стираем память
+                lastTorrentData = null;
+            }
+        }
+    }, 200);
+
+    // 3. ИНТЕГРАЦИЯ В МЕНЮ
     var timer = setInterval(function() {
         if (window.Lampa && window.Lampa.Select && window.Lampa.Select.show) {
             clearInterval(timer);
             
-            // 1. Проверяем, запустился ли вообще наш плагин
-            if (window.Lampa.Noty) window.Lampa.Noty.show('✅ Плагин установлен в память!');
-
             var orig_show = Lampa.Select.show;
             Lampa.Select.show = function (params) {
-                // 2. Сигнализируем, что меню открылось
-                if (window.Lampa.Noty) window.Lampa.Noty.show('👀 Открыто меню торрента');
-
                 var magnet = '';
 
-                // ПОПЫТКА 1: Достаем магнит из стандартных параметров (как делает большинство плагинов)
-                if (params && params.data) {
-                    if (params.data.magnet) magnet = params.data.magnet;
-                    else if (params.data.hash || params.data.btih) magnet = 'magnet:?xt=urn:btih:' + (params.data.hash || params.data.btih);
-                }
-
-                // ПОПЫТКА 2: Если Попытка 1 пустая, ищем через фокус пульта (Твой Тест №2)
-                if (!magnet) {
-                    var f = $('.focus, .selector.focus, :focus').closest('.selector, [data-element], [data-item]');
-                    if (f.length > 0) {
-                        var d = f.data('injected_torrent_data') || f.data('element') || f.data('item') || f.data('torrent') || f.data('data');
-                        if (d) {
-                            if (d.magnet) magnet = d.magnet;
-                            else if (d.hash || d.btih || d.info_hash) magnet = 'magnet:?xt=urn:btih:' + (d.hash || d.btih || d.info_hash);
-                        }
+                // Берем данные не из экрана, а из памяти нашего радара!
+                if (lastTorrentData) {
+                    if (lastTorrentData.magnet) magnet = lastTorrentData.magnet;
+                    else if (lastTorrentData.hash || lastTorrentData.btih || lastTorrentData.info_hash) {
+                        magnet = 'magnet:?xt=urn:btih:' + (lastTorrentData.hash || lastTorrentData.btih || lastTorrentData.info_hash).trim();
                     }
                 }
 
-                // 3. Отчитываемся о результатах поиска
+                // Если радар помнит магнит — добавляем кнопку
                 if (magnet) {
-                    if (window.Lampa.Noty) window.Lampa.Noty.show('🎯 Магнит найден! Добавляю кнопку.');
+                    var active = window.Lampa.Activity.active();
+                    var act_data = active ? (active.activity || {}) : {};
+
                     params.items.push({
-                        title: '💾 Сохранить',
-                        save_magnet: magnet
+                        title: '💾 Сохранить в Лампу',
+                        save_magnet: magnet,
+                        movie_id: act_data.id || null,
+                        movie_title: act_data.title || act_data.name || 'Неизвестно'
                     });
-                } else {
-                    if (window.Lampa.Noty) window.Lampa.Noty.show('❌ Магнит НЕ найден! Кнопки не будет.');
+
+                    var orig_onSelect = params.onSelect;
+                    params.onSelect = function (item) {
+                        if (item && item.save_magnet) {
+                            window.LocalTorrentStorage.save({
+                                magnet: item.save_magnet,
+                                movie_id: item.movie_id,
+                                movie_title: item.movie_title
+                            });
+                            lastTorrentData = null; // Очищаем после сохранения
+                        } else if (orig_onSelect) {
+                            orig_onSelect(item);
+                        }
+                    };
                 }
-
-                var orig_onSelect = params.onSelect;
-                params.onSelect = function (item) {
-                    if (item && item.save_magnet) {
-                        if (window.Lampa.Noty) window.Lampa.Noty.show('💾 Нажали сохранить: ' + item.save_magnet.substring(0, 15) + '...');
-                    } else if (orig_onSelect) {
-                        orig_onSelect(item);
-                    }
-                };
-
+                
                 return orig_show.call(this, params);
             };
         }
     }, 500);
 })();
+/* --- КОНЕЦ БЛОКА --- */
