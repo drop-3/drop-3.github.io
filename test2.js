@@ -27,19 +27,6 @@
                 icon: `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/><line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`
             });
 
-            // Заголовок раздела
-            Lampa.SettingsApi.addParam({
-                component: 'ai_analyzer',
-                param: {
-                    name: 'ai_analyzer_title',
-                    type: 'title'
-                },
-                field: {
-                    name: 'Ключи доступа к API',
-                    description: 'Введи ключи с пульта или оставь встроенные'
-                }
-            });
-
             // Поле для ввода ключа Gemini
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
@@ -50,7 +37,7 @@
                 },
                 field: {
                     name: 'API Ключ Gemini',
-                    description: 'Нажмите, чтобы ввести личный ключ'
+                    description: 'Введите личный ключ Google AI Studio'
                 }
             });
 
@@ -64,7 +51,7 @@
                 },
                 field: {
                     name: 'API Ключ Кинопоиск (Unofficial)',
-                    description: 'Нажмите, чтобы ввести личный ключ'
+                    description: 'Введите личный ключ кинопоиска'
                 }
             });
         }
