@@ -19,21 +19,52 @@
                 return;
             }
 
-            // Показываем диалог загрузки
-            Lampa.Select.show({
-                title: 'Анализ',
-                items: [
-                    {
-                        title: '⏳ Загрузка...',
-                        value: 'loading',
-                        description: 'Анализируем отзывы и сюжет для: ' + title
-                    }
-                ],
-                onBack: function () {
-                    Lampa.Controller.toggle('content');
+            // 1. СРАЗУ открываем наше окно в режиме загрузки (никаких боковых меню Lampa.Select)
+            $('#ai-analysis-wrap').remove();
+            
+            let wrap = $(`
+                <div id="ai-analysis-wrap" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;">
+                    <div style="background: #141414; border: 1px solid #333; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                        <div style="padding: 20px 25px; font-size: 1.4em; font-weight: bold; border-bottom: 1px solid #222; color: #fff;">
+                            Анализ: ${title}
+                        </div>
+                        <div id="ai-analysis-content" style="padding: 25px; overflow-y: auto; font-size: 1.15em; line-height: 1.6; color: #dcdcdc; flex-grow: 1; transition: opacity 0.2s;">
+                            <div style="text-align: center; padding: 40px 0; color: #aaa;">
+                                <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
+                                <div>ИИ анализирует отзывы и сюжет...<br>Пожалуйста, подождите.</div>
+                            </div>
+                        </div>
+                        <div style="padding: 15px 20px; text-align: center; color: #777; border-top: 1px solid #222; font-size: 0.9em; background: #0f0f0f; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            Используйте ВВЕРХ / ВНИЗ на пульте для прокрутки текста. НАЗАД для закрытия.
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            $('body').append(wrap);
+            setTimeout(() => wrap.css('opacity', '1'), 10);
+
+            // Подключаем управление с пульта
+            Lampa.Controller.add('ai_analyzer_view', {
+                toggle: function () {},
+                up: function () {
+                    document.getElementById('ai-analysis-content').scrollBy({ top: -100, behavior: 'smooth' });
+                },
+                down: function () {
+                    document.getElementById('ai-analysis-content').scrollBy({ top: 100, behavior: 'smooth' });
+                },
+                back: function () {
+                    wrap.css('opacity', '0');
+                    setTimeout(() => {
+                        wrap.remove();
+                        Lampa.Controller.toggle('content');
+                    }, 300);
                 }
             });
+            
+            Lampa.Controller.toggle('ai_analyzer_view');
 
+            // 2. Отправляем запрос на сервер
             let requestUrl = `${BACKEND_URL}/${media_type}/${tmdb_id}`;
 
             fetch(requestUrl, {
@@ -45,154 +76,70 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    // Если сервер вернул ошибку (429, 500 и т.д.), читаем тело ответа
                     return response.text().then(text => {
                         let errorMsg = 'Код ошибки: ' + response.status;
                         try {
-                            // Пытаемся достать поле detail из ответа FastAPI
                             let errData = JSON.parse(text);
-                            if (errData.detail) {
-                                errorMsg = errData.detail; // Тот самый текст "Дневной лимит исчерпан..."
-                            }
-                        } catch (e) {
-                            // Если пришел не JSON, оставляем стандартный текст
-                        }
-                        // Пробрасываем ошибку дальше в блок .catch()
+                            if (errData.detail) errorMsg = errData.detail; 
+                        } catch (e) {}
                         throw new Error(errorMsg); 
                     });
                 }
-                return response.json(); // Если всё ок (200), просто парсим JSON
+                return response.json(); 
             })
             .then(data => {
-                // Закрываем диалог загрузки
-                Lampa.Select.close();
+                let contentBox = $('#ai-analysis-content');
 
+                // 3. Обновляем текст прямо в открытом окне
                 if (data.error) {
-                    Lampa.Select.show({
-                        title: '❌ Ошибка',
-                        items: [
-                            {
-                                title: 'Ошибка анализа',
-                                value: 'error',
-                                description: data.error
-                            }
-                        ],
-                        onBack: function () {
-                            Lampa.Controller.toggle('content');
-                        }
-                    });
+                    contentBox.html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка анализа: ${data.error}</div>`);
                     return;
                 }
 
-                // Формируем текст для отображения
-                let fullText = '';
+                let fullHtml = '';
                 
                 if (data.audience_opinion) {
-                    fullText += '💬 Мнение аудитории:\n' + data.audience_opinion + '\n\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #ffcc00; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">💬 Мнение аудитории:</div><div>' + data.audience_opinion.replace(/\n/g, '<br>') + '</div></div>';
                 }
                 
                 if (data.critics_opinion && data.critics_opinion !== 'Нет данных' && data.critics_opinion.trim() !== '') {
-                    fullText += '🎭 Мнение критиков:\n' + data.critics_opinion + '\n\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #00ccff; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🎭 Мнение критиков:</div><div>' + data.critics_opinion.replace(/\n/g, '<br>') + '</div></div>';
                 }
                 
                 if (data.pros && Array.isArray(data.pros) && data.pros.length > 0) {
-                    fullText += '🟢 Главные плюсы:\n';
-                    data.pros.forEach(p => {
-                        fullText += '  • ' + p + '\n';
-                    });
-                    fullText += '\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #4caf50; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🟢 Главные плюсы:</div><ul style="margin: 0; padding-left: 25px;">';
+                    data.pros.forEach(p => fullHtml += '<li style="margin-bottom: 5px;">' + p + '</li>');
+                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.cons && Array.isArray(data.cons) && data.cons.length > 0) {
-                    fullText += '🔴 На что жалуются:\n';
-                    data.cons.forEach(c => {
-                        fullText += '  • ' + c + '\n';
-                    });
-                    fullText += '\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #f44336; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🔴 На что жалуются:</div><ul style="margin: 0; padding-left: 25px;">';
+                    data.cons.forEach(c => fullHtml += '<li style="margin-bottom: 5px;">' + c + '</li>');
+                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.target_audience) {
-                    fullText += '🎯 Кому стоит посмотреть:\n' + data.target_audience + '\n\n';
-                }
-                
-
-                // Если нет данных
-                if (!fullText.trim()) {
-                    fullText = 'Нет данных для отображения';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #ce93d8; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🎯 Кому стоит посмотреть:</div><div>' + data.target_audience.replace(/\n/g, '<br>') + '</div></div>';
                 }
 
-                // Создаем массив строк для отображения
-                let lines = fullText.split('\n');
-                let items = [];
-                
-                // Добавляем каждую строку как отдельный пункт
-                lines.forEach(line => {
-                    if (line.trim()) {
-                        items.push({
-                            title: line,
-                            value: 'line_' + items.length,
-                            description: ''
-                        });
-                    }
-                });
-
-                // Если слишком много строк, группируем
-                if (items.length > 20) {
-                    // Оставляем только первые 20 и добавляем "и еще..."
-                    let truncated = items.slice(0, 20);
-                    truncated.push({
-                        title: '... и еще ' + (items.length - 20) + ' строк',
-                        value: 'more',
-                        description: ''
-                    });
-                    items = truncated;
+                if (!fullHtml) {
+                    fullHtml = '<div style="text-align: center; padding: 30px;">Нет данных для отображения</div>';
                 }
 
-                // Показываем результат
-                Lampa.Select.show({
-                    title: 'Анализ: ' + title,
-                    items: items,
-                    onSelect: function (item) {
-                        // Если это строка с текстом, копируем её
-                        if (item.value !== 'more' && item.title) {
-                            if (navigator.clipboard) {
-                                navigator.clipboard.writeText(item.title).then(() => {
-                                    Lampa.Noty.show('Скопировано в буфер обмена');
-                                }).catch(() => {});
-                            }
-                        }
-                    },
-                    onBack: function () {
-                        Lampa.Controller.toggle('content');
-                    }
-                });
+                // Плавная замена контента: скрываем старый текст, подставляем новый и проявляем
+                contentBox.css('opacity', '0');
+                setTimeout(() => {
+                    contentBox.html(fullHtml);
+                    contentBox.css('opacity', '1');
+                }, 200);
             })
             .catch(err => {
-                Lampa.Select.close();
-
-                // Всплывающее уведомление (Toast) в Лампе - очень удобно для отображения лимитов
-                Lampa.Noty.show(err.message);
-                
-                Lampa.Select.show({
-                    title: '❌ Ошибка связи',
-                    items: [
-                        {
-                            title: 'Не удалось подключиться к серверу',
-                            value: 'error',
-                            description: err.message || 'Проверьте интернет-соединение'
-                        }
-                    ],
-                    onBack: function () {
-                        Lampa.Controller.toggle('content');
-                    }
-                });
+                $('#ai-analysis-content').html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка связи: ${err.message}</div>`);
             });
         }
 
-        // Добавление кнопки в интерфейс
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
-                // Проверяем, не добавлена ли уже кнопка
                 let render = e.object.activity.render();
                 if (render.find('.ai-plugin-btn').length > 0) return;
 
@@ -207,38 +154,28 @@
                 `;
                 
                 let btn = $(button);                
-                
-                // Создаем флаг для предотвращения двойного вызова
                 let isProcessing = false;
                 
-                // Функция-обработчик с защитой
                 function handleClick() {
                     if (isProcessing) {
-                        console.log('⏳ Уже обрабатывается, пропускаем');
                         return;
                     }
                     isProcessing = true;
-                    console.log('🚀 Запускаем анализ');
                     showAIAnalysis(e.data);
                     
-                    // Сбрасываем флаг через 2 секунды (время на выполнение)
                     setTimeout(function() {
                         isProcessing = false;
-                        console.log('✅ Флаг сброшен');
                     }, 2000);
                 }
                 
-                // Подписываемся только на hover:enter (основное событие в Lampa)
                 btn.on('hover:enter', handleClick);
                 
-                // Для мыши используем отдельную обработку с защитой
                 btn.on('click', function(event) {
                     event.stopPropagation();
                     event.preventDefault();
                     handleClick();
                 });
                 
-                // Ищем панель с кнопками
                 let buttonsPanel = render.find('.full-start__buttons, .info__buttons, .full__buttons');
                 
                 if (buttonsPanel.length === 0) {
@@ -247,7 +184,6 @@
                 }
                 
                 if (buttonsPanel && buttonsPanel.length > 0) {
-                    // Добавляем перед кнопкой реакций или после
                     let reactionBtn = buttonsPanel.find('.button--reaction');
                     if (reactionBtn.length > 0) {
                         reactionBtn.before(btn);
@@ -259,7 +195,6 @@
         });
     }
 
-    // Инициализация плагина
     if (window.appready) {
         init();
     } else {
