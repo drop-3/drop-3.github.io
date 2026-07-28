@@ -67,53 +67,73 @@
                     return;
                 }
 
-                // Формируем красивый HTML для модального окна
-                let fullHtml = '<div class="ai-analysis-modal" style="padding: 15px; font-size: 1.1em; line-height: 1.5; color: #ececec; max-height: 70vh; overflow-y: auto; overflow-x: hidden;">';
+                // Формируем аккуратные карточки через title и description
+                let items = [];
                 
                 if (data.audience_opinion) {
-                    fullHtml += '<div style="margin-bottom: 15px;"><b style="color: #ffcc00; font-size: 1.1em;">💬 Мнение аудитории:</b><br><div style="margin-top: 5px;">' + data.audience_opinion + '</div></div>';
+                    items.push({
+                        title: '💬 Мнение аудитории',
+                        description: data.audience_opinion,
+                        value: 'info'
+                    });
                 }
                 
                 if (data.critics_opinion && data.critics_opinion !== 'Нет данных' && data.critics_opinion.trim() !== '') {
-                    fullHtml += '<div style="margin-bottom: 15px;"><b style="color: #00ccff; font-size: 1.1em;">🎭 Мнение критиков:</b><br><div style="margin-top: 5px;">' + data.critics_opinion + '</div></div>';
+                    items.push({
+                        title: '🎭 Мнение критиков',
+                        description: data.critics_opinion,
+                        value: 'info'
+                    });
                 }
                 
                 if (data.pros && Array.isArray(data.pros) && data.pros.length > 0) {
-                    fullHtml += '<div style="margin-bottom: 15px;"><b style="color: #4caf50; font-size: 1.1em;">🟢 Главные плюсы:</b><ul style="margin-top: 5px; padding-left: 20px;">';
-                    data.pros.forEach(p => {
-                        fullHtml += '<li style="margin-bottom: 6px;">' + p + '</li>';
+                    items.push({
+                        title: '🟢 Главные плюсы',
+                        // Превращаем массив плюсов в красивый список
+                        description: data.pros.map(p => '• ' + p).join('<br>'),
+                        value: 'info'
                     });
-                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.cons && Array.isArray(data.cons) && data.cons.length > 0) {
-                    fullHtml += '<div style="margin-bottom: 15px;"><b style="color: #f44336; font-size: 1.1em;">🔴 На что жалуются:</b><ul style="margin-top: 5px; padding-left: 20px;">';
-                    data.cons.forEach(c => {
-                        fullHtml += '<li style="margin-bottom: 6px;">' + c + '</li>';
+                    items.push({
+                        title: '🔴 На что жалуются',
+                        description: data.cons.map(c => '• ' + c).join('<br>'),
+                        value: 'info'
                     });
-                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.target_audience) {
-                    fullHtml += '<div style="margin-bottom: 15px;"><b style="color: #ce93d8; font-size: 1.1em;">🎯 Кому стоит посмотреть:</b><br><div style="margin-top: 5px;">' + data.target_audience + '</div></div>';
+                    items.push({
+                        title: '🎯 Кому стоит посмотреть',
+                        description: data.target_audience,
+                        value: 'info'
+                    });
                 }
 
-                // Проверка на пустые данные
-                if (fullHtml === '<div class="ai-analysis-modal" style="padding: 15px; font-size: 1.1em; line-height: 1.5; color: #ececec; max-height: 70vh; overflow-y: auto; overflow-x: hidden;">') {
-                    fullHtml += 'Нет данных для отображения';
+                // Если нет данных
+                if (items.length === 0) {
+                    items.push({
+                        title: 'Пусто',
+                        description: 'Нет данных для отображения',
+                        value: 'empty'
+                    });
                 }
-                
-                fullHtml += '</div>';
 
-                let modalContent = $(fullHtml);
-
-                // Показываем модальное окно Lampa с подготовленным HTML
-                Lampa.Modal.show({
+                // Показываем результат в нативном окне Lampa
+                Lampa.Select.show({
                     title: 'Анализ: ' + title,
-                    html: modalContent,
-                    size: 'large',
+                    items: items,
+                    onSelect: function (item) {
+                        if (item.value !== 'empty' && navigator.clipboard) {
+                            // Формируем текст для копирования без HTML тегов
+                            let copyText = item.title + '\n' + item.description.replace(/<br>/g, '\n');
+                            navigator.clipboard.writeText(copyText).then(() => {
+                                Lampa.Noty.show('Блок скопирован в буфер');
+                            }).catch(() => {});
+                        }
+                    },
                     onBack: function () {
-                        Lampa.Modal.close();
                         Lampa.Controller.toggle('content');
                     }
                 });
