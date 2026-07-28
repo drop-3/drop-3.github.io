@@ -3,18 +3,18 @@
 
     // Вставь сюда свои ключи (внутри кавычек), чтобы они работали по умолчанию.
     // Если оставишь пустыми, плагин попросит ввести их в настройках Лампы.
-    const DEFAULT_GEMINI_KEY = '';
-    const DEFAULT_KINOPOISK_KEY = '';
+    const DEFAULT_GEMINI_KEY = 'AIzaSyDjUWZQFslnui5e1FgTXKwf71poBVqjS3g';
+    const DEFAULT_KINOPOISK_KEY = '58efcdc3-b637-4fdd-bff0-bf95ecaae131';
 
     console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Локальная версия)');
 
     // Функции для получения активных ключей (из настроек или по умолчанию)
     function getGeminiKey() {
-        return Lampa.Storage.get('ai_analyzer_gemini_key') || AIzaSyDjUWZQFslnui5e1FgTXKwf71poBVqjS3g;
+        return Lampa.Storage.get('ai_analyzer_gemini_key') || DEFAULT_GEMINI_KEY;
     }
 
     function getKpKey() {
-        return Lampa.Storage.get('ai_analyzer_kp_key') || 58efcdc3-b637-4fdd-bff0-bf95ecaae131;
+        return Lampa.Storage.get('ai_analyzer_kp_key') || DEFAULT_KINOPOISK_KEY;
     }
 
     function init() {
