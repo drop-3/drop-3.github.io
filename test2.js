@@ -27,31 +27,51 @@
                 icon: `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/><line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`
             });
 
-            // Поле для ввода ключа Gemini
+            // Поле для ввода ключа Gemini через нативную клавиатуру Лампы
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
                 param: {
                     name: 'ai_analyzer_gemini_key',
-                    type: 'input',
+                    type: 'default',
                     default: ''
                 },
                 field: {
                     name: 'API Ключ Gemini',
-                    description: 'Введите личный ключ Google AI Studio'
+                    description: 'Нажмите, чтобы ввести или изменить ключ'
+                },
+                onChange: function () {
+                    Lampa.Input.edit({
+                        title: 'API Ключ Gemini',
+                        value: Lampa.Storage.get('ai_analyzer_gemini_key', ''),
+                        free: true
+                    }, function (new_val) {
+                        Lampa.Storage.set('ai_analyzer_gemini_key', new_val.trim());
+                        Lampa.Settings.update();
+                    });
                 }
             });
 
-            // Поле для ввода ключа Кинопоиска
+            // Поле для ввода ключа Кинопоиска через нативную клавиатуру Лампы
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
                 param: {
                     name: 'ai_analyzer_kp_key',
-                    type: 'input',
+                    type: 'default',
                     default: ''
                 },
                 field: {
                     name: 'API Ключ Кинопоиск (Unofficial)',
-                    description: 'Введите личный ключ кинопоиска'
+                    description: 'Нажмите, чтобы ввести или изменить ключ'
+                },
+                onChange: function () {
+                    Lampa.Input.edit({
+                        title: 'API Ключ Кинопоиск',
+                        value: Lampa.Storage.get('ai_analyzer_kp_key', ''),
+                        free: true
+                    }, function (new_val) {
+                        Lampa.Storage.set('ai_analyzer_kp_key', new_val.trim());
+                        Lampa.Settings.update();
+                    });
                 }
             });
         }
