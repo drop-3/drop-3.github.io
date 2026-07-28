@@ -59,78 +59,91 @@
                 return response.json(); 
             })
             .then(data => {
-                // Закрываем диалог загрузки
-                Lampa.Select.close();
-
                 if (data.error) {
+                    // Если ошибка данных, закрываем меню и показываем уведомление
+                    Lampa.Select.close();
                     Lampa.Noty.show('Ошибка анализа: ' + data.error);
                     return;
                 }
 
-                // Формируем аккуратные карточки через title и description
-                let items = [];
+                // Возвращаемся к надежной логике сплошного текста
+                let fullText = '';
                 
                 if (data.audience_opinion) {
-                    items.push({
-                        title: '💬 Мнение аудитории',
-                        description: data.audience_opinion,
-                        value: 'info'
-                    });
+                    fullText += '💬 Мнение аудитории:\n' + data.audience_opinion + '\n\n';
                 }
                 
                 if (data.critics_opinion && data.critics_opinion !== 'Нет данных' && data.critics_opinion.trim() !== '') {
-                    items.push({
-                        title: '🎭 Мнение критиков',
-                        description: data.critics_opinion,
-                        value: 'info'
-                    });
+                    fullText += '🎭 Мнение критиков:\n' + data.critics_opinion + '\n\n';
                 }
                 
                 if (data.pros && Array.isArray(data.pros) && data.pros.length > 0) {
-                    items.push({
-                        title: '🟢 Главные плюсы',
-                        // Превращаем массив плюсов в красивый список
-                        description: data.pros.map(p => '• ' + p).join('<br>'),
-                        value: 'info'
+                    fullText += '🟢 Главные плюсы:\n';
+                    data.pros.forEach(p => {
+                        fullText += '  • ' + p + '\n';
                     });
+                    fullText += '\n';
                 }
                 
                 if (data.cons && Array.isArray(data.cons) && data.cons.length > 0) {
-                    items.push({
-                        title: '🔴 На что жалуются',
-                        description: data.cons.map(c => '• ' + c).join('<br>'),
-                        value: 'info'
+                    fullText += '🔴 На что жалуются:\n';
+                    data.cons.forEach(c => {
+                        fullText += '  • ' + c + '\n';
                     });
+                    fullText += '\n';
                 }
                 
                 if (data.target_audience) {
-                    items.push({
-                        title: '🎯 Кому стоит посмотреть',
-                        description: data.target_audience,
-                        value: 'info'
-                    });
+                    fullText += '🎯 Кому стоит посмотреть:\n' + data.target_audience + '\n\n';
+                }
+                
+                if (!fullText.trim()) {
+                    fullText = 'Нет данных для отображения';
                 }
 
-                // Если нет данных
-                if (items.length === 0) {
-                    items.push({
-                        title: 'Пусто',
-                        description: 'Нет данных для отображения',
-                        value: 'empty'
-                    });
+                // Создаем массив строк для Lampa.Select
+                let lines = fullText.split('\n');
+                let items = [];
+                
+                lines.forEach(line => {
+                    // Оставляем даже пустые строки для визуальных отступов
+                    if (line.trim() !== '' || items.length > 0) {
+                        items.push({
+                            title: line || ' ', // Заменяем пустую строку на пробел, чтобы не схлопывалась
+                            value: 'line_' + items.length,
+                            description: ''
+                        });
+                    }
+                });
+
+                // Подчищаем лишние пустые строки в самом конце
+                while (items.length > 0 && items[items.length - 1].title === ' ') {
+                    items.pop();
                 }
 
-                // Показываем результат в нативном окне Lampa
+                // Немного увеличил лимит до 40 строк для более подробных отзывов
+                if (items.length > 40) {
+                    let truncated = items.slice(0, 40);
+                    truncated.push({
+                        title: '... и еще ' + (items.length - 40) + ' строк',
+                        value: 'more',
+                        description: ''
+                    });
+                    items = truncated;
+                }
+
+                // Вызываем показ меню БЕЗ предварительного close(). 
+                // Это перезапишет текущее "окно загрузки" без двойного мигания.
                 Lampa.Select.show({
                     title: 'Анализ: ' + title,
                     items: items,
                     onSelect: function (item) {
-                        if (item.value !== 'empty' && navigator.clipboard) {
-                            // Формируем текст для копирования без HTML тегов
-                            let copyText = item.title + '\n' + item.description.replace(/<br>/g, '\n');
-                            navigator.clipboard.writeText(copyText).then(() => {
-                                Lampa.Noty.show('Блок скопирован в буфер');
-                            }).catch(() => {});
+                        if (item.value !== 'more' && item.title && item.title !== ' ') {
+                            if (navigator.clipboard) {
+                                navigator.clipboard.writeText(item.title).then(() => {
+                                    Lampa.Noty.show('Скопировано в буфер обмена');
+                                }).catch(() => {});
+                            }
                         }
                     },
                     onBack: function () {
@@ -144,7 +157,6 @@
             });
         }
 
-        // Добавление кнопки в интерфейс
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
                 let render = e.object.activity.render();
