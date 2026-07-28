@@ -27,31 +27,45 @@
                 icon: `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/><line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`
             });
 
-            // Добавляем заголовок (без него пустые вкладки иногда не рендерятся в Лампе)
+            // Заголовок раздела
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
-                param: 'ai_analyzer_title',
-                type: 'title',
-                name: 'Ключи доступа к API'
+                param: {
+                    name: 'ai_analyzer_title',
+                    type: 'title'
+                },
+                field: {
+                    name: 'Ключи доступа к API',
+                    description: 'Введи ключи с пульта или оставь встроенные'
+                }
             });
 
-            // Добавляем обязательное поле default: '', чтобы избежать ошибки пустого окна
+            // Поле для ввода ключа Gemini
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
-                param: 'ai_analyzer_gemini_key',
-                type: 'input',
-                name: 'API Ключ Gemini',
-                description: 'Введи новый ключ, чтобы переопределить встроенный',
-                default: ''
+                param: {
+                    name: 'ai_analyzer_gemini_key',
+                    type: 'input',
+                    default: ''
+                },
+                field: {
+                    name: 'API Ключ Gemini',
+                    description: 'Нажмите, чтобы ввести личный ключ'
+                }
             });
 
+            // Поле для ввода ключа Кинопоиска
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
-                param: 'ai_analyzer_kp_key',
-                type: 'input',
-                name: 'API Ключ Кинопоиск (Unofficial)',
-                description: 'Введи новый ключ, чтобы переопределить встроенный',
-                default: ''
+                param: {
+                    name: 'ai_analyzer_kp_key',
+                    type: 'input',
+                    default: ''
+                },
+                field: {
+                    name: 'API Ключ Кинопоиск (Unofficial)',
+                    description: 'Нажмите, чтобы ввести личный ключ'
+                }
             });
         }
 
