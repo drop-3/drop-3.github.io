@@ -10,11 +10,11 @@
 
     // Функции для получения активных ключей (из настроек или по умолчанию)
     function getGeminiKey() {
-        return Lampa.Storage.get('ai_analyzer_gemini_key') || DEFAULT_GEMINI_KEY;
+        return Lampa.Storage.get('ai_analyzer_gemini_key') || AIzaSyDjUWZQFslnui5e1FgTXKwf71poBVqjS3g;
     }
 
     function getKpKey() {
-        return Lampa.Storage.get('ai_analyzer_kp_key') || DEFAULT_KINOPOISK_KEY;
+        return Lampa.Storage.get('ai_analyzer_kp_key') || 58efcdc3-b637-4fdd-bff0-bf95ecaae131;
     }
 
     function init() {
