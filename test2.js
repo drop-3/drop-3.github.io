@@ -8,6 +8,57 @@
     function init() {
         console.log('Lampa Movies Analyzer Plugin: Инициализация успешна');
 
+        // Функция для показа нашего собственного красивого окна
+        function showCustomModal(title, htmlContent) {
+            // На всякий случай удаляем старое окно, если оно зависло
+            $('#ai-analysis-wrap').remove();
+            
+            let wrap = $(`
+                <div id="ai-analysis-wrap" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;">
+                    <div style="background: #141414; border: 1px solid #333; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                        <div style="padding: 20px 25px; font-size: 1.4em; font-weight: bold; border-bottom: 1px solid #222; color: #fff;">
+                            Анализ: ${title}
+                        </div>
+                        <div id="ai-analysis-content" style="padding: 25px; overflow-y: auto; font-size: 1.15em; line-height: 1.6; color: #dcdcdc; flex-grow: 1;">
+                            ${htmlContent}
+                        </div>
+                        <div style="padding: 15px 20px; text-align: center; color: #777; border-top: 1px solid #222; font-size: 0.9em; background: #0f0f0f; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            Используйте ВВЕРХ / ВНИЗ на пульте для прокрутки текста. НАЗАД для закрытия.
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            $('body').append(wrap);
+            
+            // Плавное появление
+            setTimeout(() => wrap.css('opacity', '1'), 10);
+
+            // Подключаем управление с пульта (перехватываем события Лампы)
+            Lampa.Controller.add('ai_analyzer_view', {
+                toggle: function () {},
+                up: function () {
+                    // Прокрутка текста вверх на 100 пикселей
+                    document.getElementById('ai-analysis-content').scrollBy({ top: -100, behavior: 'smooth' });
+                },
+                down: function () {
+                    // Прокрутка текста вниз на 100 пикселей
+                    document.getElementById('ai-analysis-content').scrollBy({ top: 100, behavior: 'smooth' });
+                },
+                back: function () {
+                    wrap.css('opacity', '0');
+                    setTimeout(() => {
+                        wrap.remove();
+                        Lampa.Controller.toggle('content'); // Возвращаем управление карточке фильма
+                    }, 300);
+                }
+            });
+            
+            // Включаем контроллер нашего окна
+            Lampa.Controller.toggle('ai_analyzer_view');
+        }
+
+
         function showAIAnalysis(data) {
             let item = data.movie || data;
             let tmdb_id = item.tmdb_id || item.id || data.id;
@@ -19,7 +70,7 @@
                 return;
             }
 
-            // Показываем диалог загрузки
+            // Показываем диалог загрузки (его оставляем родным, он работает хорошо)
             Lampa.Select.show({
                 title: 'Анализ',
                 items: [
@@ -59,97 +110,47 @@
                 return response.json(); 
             })
             .then(data => {
+                // Закрываем меню загрузки
+                Lampa.Select.close();
+
                 if (data.error) {
-                    // Если ошибка данных, закрываем меню и показываем уведомление
-                    Lampa.Select.close();
                     Lampa.Noty.show('Ошибка анализа: ' + data.error);
                     return;
                 }
 
-                // Возвращаемся к надежной логике сплошного текста
-                let fullText = '';
+                // Собираем красивый HTML текст (без всяких списков-кнопок)
+                let fullHtml = '';
                 
                 if (data.audience_opinion) {
-                    fullText += '💬 Мнение аудитории:\n' + data.audience_opinion + '\n\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #ffcc00; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">💬 Мнение аудитории:</div><div>' + data.audience_opinion.replace(/\n/g, '<br>') + '</div></div>';
                 }
                 
                 if (data.critics_opinion && data.critics_opinion !== 'Нет данных' && data.critics_opinion.trim() !== '') {
-                    fullText += '🎭 Мнение критиков:\n' + data.critics_opinion + '\n\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #00ccff; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🎭 Мнение критиков:</div><div>' + data.critics_opinion.replace(/\n/g, '<br>') + '</div></div>';
                 }
                 
                 if (data.pros && Array.isArray(data.pros) && data.pros.length > 0) {
-                    fullText += '🟢 Главные плюсы:\n';
-                    data.pros.forEach(p => {
-                        fullText += '  • ' + p + '\n';
-                    });
-                    fullText += '\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #4caf50; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🟢 Главные плюсы:</div><ul style="margin: 0; padding-left: 25px;">';
+                    data.pros.forEach(p => fullHtml += '<li style="margin-bottom: 5px;">' + p + '</li>');
+                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.cons && Array.isArray(data.cons) && data.cons.length > 0) {
-                    fullText += '🔴 На что жалуются:\n';
-                    data.cons.forEach(c => {
-                        fullText += '  • ' + c + '\n';
-                    });
-                    fullText += '\n';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #f44336; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🔴 На что жалуются:</div><ul style="margin: 0; padding-left: 25px;">';
+                    data.cons.forEach(c => fullHtml += '<li style="margin-bottom: 5px;">' + c + '</li>');
+                    fullHtml += '</ul></div>';
                 }
                 
                 if (data.target_audience) {
-                    fullText += '🎯 Кому стоит посмотреть:\n' + data.target_audience + '\n\n';
-                }
-                
-                if (!fullText.trim()) {
-                    fullText = 'Нет данных для отображения';
+                    fullHtml += '<div style="margin-bottom: 20px;"><div style="color: #ce93d8; font-size: 1.1em; font-weight: bold; margin-bottom: 5px;">🎯 Кому стоит посмотреть:</div><div>' + data.target_audience.replace(/\n/g, '<br>') + '</div></div>';
                 }
 
-                // Создаем массив строк для Lampa.Select
-                let lines = fullText.split('\n');
-                let items = [];
-                
-                lines.forEach(line => {
-                    // Оставляем даже пустые строки для визуальных отступов
-                    if (line.trim() !== '' || items.length > 0) {
-                        items.push({
-                            title: line || ' ', // Заменяем пустую строку на пробел, чтобы не схлопывалась
-                            value: 'line_' + items.length,
-                            description: ''
-                        });
-                    }
-                });
-
-                // Подчищаем лишние пустые строки в самом конце
-                while (items.length > 0 && items[items.length - 1].title === ' ') {
-                    items.pop();
+                if (!fullHtml) {
+                    fullHtml = 'Нет данных для отображения';
                 }
 
-                // Немного увеличил лимит до 40 строк для более подробных отзывов
-                if (items.length > 40) {
-                    let truncated = items.slice(0, 40);
-                    truncated.push({
-                        title: '... и еще ' + (items.length - 40) + ' строк',
-                        value: 'more',
-                        description: ''
-                    });
-                    items = truncated;
-                }
-
-                // Вызываем показ меню БЕЗ предварительного close(). 
-                // Это перезапишет текущее "окно загрузки" без двойного мигания.
-                Lampa.Select.show({
-                    title: 'Анализ: ' + title,
-                    items: items,
-                    onSelect: function (item) {
-                        if (item.value !== 'more' && item.title && item.title !== ' ') {
-                            if (navigator.clipboard) {
-                                navigator.clipboard.writeText(item.title).then(() => {
-                                    Lampa.Noty.show('Скопировано в буфер обмена');
-                                }).catch(() => {});
-                            }
-                        }
-                    },
-                    onBack: function () {
-                        Lampa.Controller.toggle('content');
-                    }
-                });
+                // Вызываем наше кастомное окно
+                showCustomModal(title, fullHtml);
             })
             .catch(err => {
                 Lampa.Select.close();
@@ -157,6 +158,7 @@
             });
         }
 
+        // Добавление кнопки в интерфейс
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
                 let render = e.object.activity.render();
@@ -177,11 +179,9 @@
                 
                 function handleClick() {
                     if (isProcessing) {
-                        console.log('⏳ Уже обрабатывается, пропускаем');
                         return;
                     }
                     isProcessing = true;
-                    console.log('🚀 Запускаем анализ');
                     showAIAnalysis(e.data);
                     
                     setTimeout(function() {
