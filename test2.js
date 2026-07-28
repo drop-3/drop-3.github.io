@@ -8,57 +8,6 @@
     function init() {
         console.log('Lampa Movies Analyzer Plugin: Инициализация успешна');
 
-        // Функция для показа нашего собственного красивого окна
-        function showCustomModal(title, htmlContent) {
-            // На всякий случай удаляем старое окно, если оно зависло
-            $('#ai-analysis-wrap').remove();
-            
-            let wrap = $(`
-                <div id="ai-analysis-wrap" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;">
-                    <div style="background: #141414; border: 1px solid #333; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
-                        <div style="padding: 20px 25px; font-size: 1.4em; font-weight: bold; border-bottom: 1px solid #222; color: #fff;">
-                            Анализ: ${title}
-                        </div>
-                        <div id="ai-analysis-content" style="padding: 25px; overflow-y: auto; font-size: 1.15em; line-height: 1.6; color: #dcdcdc; flex-grow: 1;">
-                            ${htmlContent}
-                        </div>
-                        <div style="padding: 15px 20px; text-align: center; color: #777; border-top: 1px solid #222; font-size: 0.9em; background: #0f0f0f; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
-                            Используйте ВВЕРХ / ВНИЗ на пульте для прокрутки текста. НАЗАД для закрытия.
-                        </div>
-                    </div>
-                </div>
-            `);
-            
-            $('body').append(wrap);
-            
-            // Плавное появление
-            setTimeout(() => wrap.css('opacity', '1'), 10);
-
-            // Подключаем управление с пульта (перехватываем события Лампы)
-            Lampa.Controller.add('ai_analyzer_view', {
-                toggle: function () {},
-                up: function () {
-                    // Прокрутка текста вверх на 100 пикселей
-                    document.getElementById('ai-analysis-content').scrollBy({ top: -100, behavior: 'smooth' });
-                },
-                down: function () {
-                    // Прокрутка текста вниз на 100 пикселей
-                    document.getElementById('ai-analysis-content').scrollBy({ top: 100, behavior: 'smooth' });
-                },
-                back: function () {
-                    wrap.css('opacity', '0');
-                    setTimeout(() => {
-                        wrap.remove();
-                        Lampa.Controller.toggle('content'); // Возвращаем управление карточке фильма
-                    }, 300);
-                }
-            });
-            
-            // Включаем контроллер нашего окна
-            Lampa.Controller.toggle('ai_analyzer_view');
-        }
-
-
         function showAIAnalysis(data) {
             let item = data.movie || data;
             let tmdb_id = item.tmdb_id || item.id || data.id;
@@ -70,21 +19,52 @@
                 return;
             }
 
-            // Показываем диалог загрузки (его оставляем родным, он работает хорошо)
-            Lampa.Select.show({
-                title: 'Анализ',
-                items: [
-                    {
-                        title: '⏳ Загрузка...',
-                        value: 'loading',
-                        description: 'Анализируем отзывы и сюжет для: ' + title
-                    }
-                ],
-                onBack: function () {
-                    Lampa.Controller.toggle('content');
+            // 1. СРАЗУ открываем наше окно в режиме загрузки (никаких боковых меню Lampa.Select)
+            $('#ai-analysis-wrap').remove();
+            
+            let wrap = $(`
+                <div id="ai-analysis-wrap" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;">
+                    <div style="background: #141414; border: 1px solid #333; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                        <div style="padding: 20px 25px; font-size: 1.4em; font-weight: bold; border-bottom: 1px solid #222; color: #fff;">
+                            Анализ: ${title}
+                        </div>
+                        <div id="ai-analysis-content" style="padding: 25px; overflow-y: auto; font-size: 1.15em; line-height: 1.6; color: #dcdcdc; flex-grow: 1; transition: opacity 0.2s;">
+                            <div style="text-align: center; padding: 40px 0; color: #aaa;">
+                                <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
+                                <div>ИИ анализирует отзывы и сюжет...<br>Пожалуйста, подождите.</div>
+                            </div>
+                        </div>
+                        <div style="padding: 15px 20px; text-align: center; color: #777; border-top: 1px solid #222; font-size: 0.9em; background: #0f0f0f; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            Используйте ВВЕРХ / ВНИЗ на пульте для прокрутки текста. НАЗАД для закрытия.
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            $('body').append(wrap);
+            setTimeout(() => wrap.css('opacity', '1'), 10);
+
+            // Подключаем управление с пульта
+            Lampa.Controller.add('ai_analyzer_view', {
+                toggle: function () {},
+                up: function () {
+                    document.getElementById('ai-analysis-content').scrollBy({ top: -100, behavior: 'smooth' });
+                },
+                down: function () {
+                    document.getElementById('ai-analysis-content').scrollBy({ top: 100, behavior: 'smooth' });
+                },
+                back: function () {
+                    wrap.css('opacity', '0');
+                    setTimeout(() => {
+                        wrap.remove();
+                        Lampa.Controller.toggle('content');
+                    }, 300);
                 }
             });
+            
+            Lampa.Controller.toggle('ai_analyzer_view');
 
+            // 2. Отправляем запрос на сервер
             let requestUrl = `${BACKEND_URL}/${media_type}/${tmdb_id}`;
 
             fetch(requestUrl, {
@@ -100,9 +80,7 @@
                         let errorMsg = 'Код ошибки: ' + response.status;
                         try {
                             let errData = JSON.parse(text);
-                            if (errData.detail) {
-                                errorMsg = errData.detail; 
-                            }
+                            if (errData.detail) errorMsg = errData.detail; 
                         } catch (e) {}
                         throw new Error(errorMsg); 
                     });
@@ -110,15 +88,14 @@
                 return response.json(); 
             })
             .then(data => {
-                // Закрываем меню загрузки
-                Lampa.Select.close();
+                let contentBox = $('#ai-analysis-content');
 
+                // 3. Обновляем текст прямо в открытом окне
                 if (data.error) {
-                    Lampa.Noty.show('Ошибка анализа: ' + data.error);
+                    contentBox.html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка анализа: ${data.error}</div>`);
                     return;
                 }
 
-                // Собираем красивый HTML текст (без всяких списков-кнопок)
                 let fullHtml = '';
                 
                 if (data.audience_opinion) {
@@ -146,19 +123,21 @@
                 }
 
                 if (!fullHtml) {
-                    fullHtml = 'Нет данных для отображения';
+                    fullHtml = '<div style="text-align: center; padding: 30px;">Нет данных для отображения</div>';
                 }
 
-                // Вызываем наше кастомное окно
-                showCustomModal(title, fullHtml);
+                // Плавная замена контента: скрываем старый текст, подставляем новый и проявляем
+                contentBox.css('opacity', '0');
+                setTimeout(() => {
+                    contentBox.html(fullHtml);
+                    contentBox.css('opacity', '1');
+                }, 200);
             })
             .catch(err => {
-                Lampa.Select.close();
-                Lampa.Noty.show('Ошибка: ' + err.message);
+                $('#ai-analysis-content').html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка связи: ${err.message}</div>`);
             });
         }
 
-        // Добавление кнопки в интерфейс
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
                 let render = e.object.activity.render();
