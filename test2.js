@@ -98,9 +98,9 @@
                             headers: { 'X-API-KEY': kpKey }
                         }).then(r => r.json());
 
-                        // Оптимизация: берем максимум 5 отзывов и режем до 3000 символов для высокой скорости
+                        // Берем до 5 отзывов и обрезаем до 2500 символов для максимальной скорости
                         if (reviewsRes.items && reviewsRes.items.length > 0) {
-                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв]: ${r.description}`).join('\n\n').substring(0, 3000); 
+                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв]: ${r.description}`).join(' ').substring(0, 2500); 
                         }
                     }
                 } catch (e) {
@@ -112,17 +112,16 @@
 Официальное описание: ${overview}
 Отзывы зрителей: ${reviewsText ? reviewsText : 'Отзывов нет. Используй свои знания об этом фильме.'}
 
-Составь краткую выжимку. Верни ответ СТРОГО в формате JSON без markdown разметки (без \`\`\`json). 
+Составь краткую выжимку. Верни ответ СТРОГО в формате валидного JSON без markdown разметки (без \`\`\`json). Внутри значений JSON ЗАПРЕЩЕНО использовать переносы строк, пиши весь текст одной сплошной строкой.
 Ключи JSON должны быть точно такими:
 {
-  "audience_opinion": "Мнение зрителей (сводка на 2 абзаца)",
-  "critics_opinion": "Мнение критиков (сводка на 2 абзаца, если данных нет, напиши 'Нет данных')",
+  "audience_opinion": "Мнение зрителей в один абзац без переносов строк",
+  "critics_opinion": "Мнение критиков в один абзац без переносов строк (если данных нет, напиши 'Нет данных')",
   "pros": ["плюс 1", "плюс 2", "плюс 3"],
   "cons": ["минус 1", "минус 2", "минус 3"],
-  "target_audience": "Кому стоит посмотреть (1 предложение)"
+  "target_audience": "Кому стоит посмотреть"
 }`;
 
-            // Используем модель gemini-3.6-flash с ограничением maxOutputTokens для моментального ответа
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -131,7 +130,7 @@
                     generationConfig: { 
                         response_mime_type: "application/json",
                         temperature: 0.3,
-                        maxOutputTokens: 800
+                        maxOutputTokens: 1000
                     }
                 })
             });
@@ -147,8 +146,19 @@
                 throw new Error(geminiData.error.message);
             }
 
-            let jsonText = geminiData.candidates[0].content.parts[0].text;
-            return JSON.parse(jsonText);
+            let jsonText = geminiData.candidates[0].content.parts[0].text.trim();
+            
+            // Очищаем от возможных случайно попавших markdown-тегов
+            jsonText = jsonText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+
+            try {
+                return JSON.parse(jsonText);
+            } catch (parseErr) {
+                console.log('Lampa AI Analyzer: Ошибка парсинга JSON, пробуем исправить', parseErr);
+                // Защитный механизм: убираем лишние управляющие символы и переносы, ломающие JSON
+                let fixedText = jsonText.replace(/[\n\r]+/g, " ");
+                return JSON.parse(fixedText);
+            }
         }
 
         function showCustomModal(title, htmlContent) {
@@ -265,7 +275,7 @@
 
                 let button = `
                     <div class="full-start__button selector ai-plugin-btn">
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
                             <circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/>
                             <line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                         </svg>
