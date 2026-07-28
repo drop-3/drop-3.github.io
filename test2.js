@@ -98,8 +98,9 @@
                             headers: { 'X-API-KEY': kpKey }
                         }).then(r => r.json());
 
+                        // Оптимизация: берем максимум 5 отзывов и режем до 3000 символов для высокой скорости
                         if (reviewsRes.items && reviewsRes.items.length > 0) {
-                            reviewsText = reviewsRes.items.slice(0, 10).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 15000); 
+                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв]: ${r.description}`).join('\n\n').substring(0, 3000); 
                         }
                     }
                 } catch (e) {
@@ -111,17 +112,17 @@
 Официальное описание: ${overview}
 Отзывы зрителей: ${reviewsText ? reviewsText : 'Отзывов нет. Используй свои знания об этом фильме.'}
 
-Тебе нужно составить краткую выжимку. Верни ответ СТРОГО в формате JSON без markdown разметки (без \`\`\`json). 
+Составь краткую выжимку. Верни ответ СТРОГО в формате JSON без markdown разметки (без \`\`\`json). 
 Ключи JSON должны быть точно такими:
 {
-  "audience_opinion": "Мнение зрителей (сводка на 2-3 абзаца)",
-  "critics_opinion": "Мнение критиков (сводка на 2-3 абзаца, если данных нет, напиши 'Нет данных')",
-  "pros": ["короткий плюс 1", "короткий плюс 2", "короткий плюс 3"],
-  "cons": ["короткий минус 1", "короткий минус 2", "короткий минус 3"],
-  "target_audience": "Кому стоит посмотреть (1-2 предложения)"
+  "audience_opinion": "Мнение зрителей (сводка на 2 абзаца)",
+  "critics_opinion": "Мнение критиков (сводка на 2 абзаца, если данных нет, напиши 'Нет данных')",
+  "pros": ["плюс 1", "плюс 2", "плюс 3"],
+  "cons": ["минус 1", "минус 2", "минус 3"],
+  "target_audience": "Кому стоит посмотреть (1 предложение)"
 }`;
 
-            // Используем стабильную и мощную модель gemini-3.6-flash из твоего списка
+            // Используем модель gemini-3.6-flash с ограничением maxOutputTokens для моментального ответа
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -129,7 +130,8 @@
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: { 
                         response_mime_type: "application/json",
-                        temperature: 0.3
+                        temperature: 0.3,
+                        maxOutputTokens: 800
                     }
                 })
             });
