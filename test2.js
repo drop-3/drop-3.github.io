@@ -4,11 +4,10 @@
     // Вставь сюда свои ключи (внутри кавычек), чтобы они работали по умолчанию.
     // Если оставишь пустыми, плагин попросит ввести их в настройках Лампы.
     const DEFAULT_GEMINI_KEY = '';
-    const DEFAULT_KINOPOISK_KEY = '58efcdc3-b637-4fdd-bff0-bf95ecaae131';
+    const DEFAULT_KINOPOISK_KEY = '';
 
     console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Локальная версия)');
 
-    // Функции для получения активных ключей (из настроек или по умолчанию)
     function getGeminiKey() {
         return Lampa.Storage.get('ai_analyzer_gemini_key') || DEFAULT_GEMINI_KEY;
     }
@@ -28,12 +27,22 @@
                 icon: `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/><line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`
             });
 
+            // Добавляем заголовок (без него пустые вкладки иногда не рендерятся в Лампе)
+            Lampa.SettingsApi.addParam({
+                component: 'ai_analyzer',
+                param: 'ai_analyzer_title',
+                type: 'title',
+                name: 'Ключи доступа к API'
+            });
+
+            // Добавляем обязательное поле default: '', чтобы избежать ошибки пустого окна
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
                 param: 'ai_analyzer_gemini_key',
                 type: 'input',
                 name: 'API Ключ Gemini',
-                description: 'Введи новый ключ, чтобы переопределить встроенный'
+                description: 'Введи новый ключ, чтобы переопределить встроенный',
+                default: ''
             });
 
             Lampa.SettingsApi.addParam({
@@ -41,11 +50,11 @@
                 param: 'ai_analyzer_kp_key',
                 type: 'input',
                 name: 'API Ключ Кинопоиск (Unofficial)',
-                description: 'Введи новый ключ, чтобы переопределить встроенный'
+                description: 'Введи новый ключ, чтобы переопределить встроенный',
+                default: ''
             });
         }
 
-        // Основная функция сбора данных и запроса к Gemini
         async function fetchAIAnalysis(data, geminiKey, kpKey) {
             let item = data.movie || data;
             let title = item.title || item.original_title || item.name || 'Неизвестный фильм';
@@ -54,10 +63,8 @@
 
             let reviewsText = '';
 
-            // 1. Пытаемся получить отзывы с Кинопоиска
             if (kpKey) {
                 try {
-                    // Если Лампа не дала нам ID Кинопоиска, ищем его по названию
                     if (!kp_id) {
                         let searchRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=${encodeURIComponent(title)}`, {
                             headers: { 'X-API-KEY': kpKey }
@@ -67,14 +74,12 @@
                         }
                     }
 
-                    // Собираем отзывы по найденному ID
                     if (kp_id) {
                         let reviewsRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.2/films/${kp_id}/reviews?page=1`, {
                             headers: { 'X-API-KEY': kpKey }
                         }).then(r => r.json());
 
                         if (reviewsRes.items && reviewsRes.items.length > 0) {
-                            // Берем до 10 отзывов, чтобы дать ИИ хорошую базу
                             reviewsText = reviewsRes.items.slice(0, 10).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 15000); 
                         }
                     }
@@ -83,7 +88,6 @@
                 }
             }
 
-            // 2. Формируем системный промпт
             let prompt = `Проанализируй фильм/сериал "${title}".
 Официальное описание: ${overview}
 Отзывы зрителей: ${reviewsText ? reviewsText : 'Отзывов нет. Используй свои знания об этом фильме.'}
@@ -98,7 +102,6 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            // 3. Отправляем прямой запрос в Google AI Studio
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -112,7 +115,6 @@
             });
 
             if (!geminiRes.ok) {
-                let errData = await geminiRes.text();
                 throw new Error(`Ошибка Gemini API: ${geminiRes.status}`);
             }
 
@@ -126,7 +128,6 @@
             return JSON.parse(jsonText);
         }
 
-        // Функция нашего кастомного окна (осталась без изменений, как ты и просил)
         function showCustomModal(title, htmlContent) {
             $('#ai-analysis-wrap').remove();
             
@@ -176,7 +177,6 @@
             let activeGeminiKey = getGeminiKey();
             let activeKpKey = getKpKey();
 
-            // Показываем наше окно загрузки
             let loadingHtml = `
                 <div style="text-align: center; padding: 40px 0; color: #aaa;">
                     <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
@@ -187,13 +187,11 @@
 
             let contentBox = $('#ai-analysis-content');
 
-            // Проверка наличия главного ключа
             if (!activeGeminiKey) {
                 contentBox.html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка: Не указан API ключ Gemini.<br><br>Перейдите в Настройки -> Анализ ИИ и укажите ключ.</div>`);
                 return;
             }
 
-            // Вызываем нашу новую функцию запросов вместо сервера lavril
             fetchAIAnalysis(data, activeGeminiKey, activeKpKey)
             .then(parsedData => {
                 let fullHtml = '';
@@ -226,7 +224,6 @@
                     fullHtml = '<div style="text-align: center; padding: 30px;">Нет данных для отображения</div>';
                 }
 
-                // Плавная замена контента
                 contentBox.css('opacity', '0');
                 setTimeout(() => {
                     contentBox.html(fullHtml);
@@ -238,7 +235,6 @@
             });
         }
 
-        // Внедрение кнопки на страницу фильма (осталось без изменений)
         Lampa.Listener.follow('full', function (e) {
             if (e.type == 'complite') {
                 let render = e.object.activity.render();
