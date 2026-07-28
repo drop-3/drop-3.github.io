@@ -121,8 +121,8 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            // Используем подтвержденную модель gemini-2.5-flash из твоего списка
-            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+            // Используем модель gemini-3.5-flash из твоего списка доступных моделей
+            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
