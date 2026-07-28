@@ -3,7 +3,7 @@
 
     // Вставь сюда свои ключи (внутри кавычек), чтобы они работали по умолчанию.
     // Если оставишь пустыми, плагин попросит ввести их в настройках Лампы.
-    const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6LRCYqywkQNFrM6VfQfOBQ1xvWoeLUcfoETYGQDjVXcpg';
+    const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6KRyyNCxiFbdmcgBTh46aeKD_1GTeMVStA7HYXnBF0qeA';
     const DEFAULT_KINOPOISK_KEY = '58efcdc3-b637-4fdd-bff0-bf95ecaae131';
 
     console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Локальная версия)');
