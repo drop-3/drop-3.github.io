@@ -121,7 +121,8 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+            // Используем актуальную модель gemini-2.0-flash для новых ключей Google AI Studio
+            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -134,7 +135,8 @@
             });
 
             if (!geminiRes.ok) {
-                throw new Error(`Ошибка Gemini API: ${geminiRes.status}`);
+                let errText = await geminiRes.text();
+                throw new Error(`Ошибка Gemini API (${geminiRes.status}): ${errText.substring(0, 100)}`);
             }
 
             let geminiData = await geminiRes.json();
