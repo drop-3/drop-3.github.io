@@ -121,8 +121,8 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            // Используем актуальную модель gemini-2.0-flash для новых ключей Google AI Studio
-            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+            // Возвращаем стабильную модель gemini-1.5-flash, которая корректно работает на бесплатных ключах
+            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
