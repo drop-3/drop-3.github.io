@@ -1,14 +1,19 @@
 (function () {
     'use strict';
 
-    // Вставь сюда свой ключ Gemini (внутри кавычек), чтобы он работал по умолчанию.
-    // Если оставишь пустым, плагин попросит ввести его в настройках Лампы.
+    // Вставь сюда свои ключи (внутри кавычек), чтобы они работали по умолчанию.
+    // Если оставишь пустыми, плагин попросит ввести их в настройках Лампы.
     const DEFAULT_GEMINI_KEY = '';
+    const DEFAULT_KINOPOISK_KEY = '';
 
-    console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (TMDB версия)');
+    console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Локальная версия)');
 
     function getGeminiKey() {
         return Lampa.Storage.get('ai_analyzer_gemini_key') || DEFAULT_GEMINI_KEY;
+    }
+
+    function getKpKey() {
+        return Lampa.Storage.get('ai_analyzer_kp_key') || DEFAULT_KINOPOISK_KEY;
     }
 
     function init() {
@@ -44,27 +49,62 @@
                     });
                 }
             });
+
+            // Кнопка для ввода ключа Кинопоиска (открывает нативную клавиатуру Лампы)
+            Lampa.SettingsApi.addParam({
+                component: 'ai_analyzer',
+                param: {
+                    name: 'ai_analyzer_kp_key',
+                    type: 'button'
+                },
+                field: {
+                    name: 'API Ключ Кинопоиск (Unofficial)',
+                    description: 'Нажмите, чтобы ввести или изменить ключ'
+                },
+                onChange: function () {
+                    Lampa.Input.edit({
+                        title: 'API Ключ Кинопоиск',
+                        value: Lampa.Storage.get('ai_analyzer_kp_key', ''),
+                        free: true
+                    }, function (new_val) {
+                        Lampa.Storage.set('ai_analyzer_kp_key', new_val.trim());
+                        Lampa.Settings.update();
+                    });
+                }
+            });
         }
 
-        async function fetchAIAnalysis(data, geminiKey) {
+        async function fetchAIAnalysis(data, geminiKey, kpKey) {
             let item = data.movie || data;
             let title = item.title || item.original_title || item.name || 'Неизвестный фильм';
             let overview = item.overview || 'Сюжет не найден.';
-            let tmdb_id = item.id || item.tmdb_id;
-            let media_type = data.method ? data.method : (item.name ? 'tv' : 'movie');
+            let kp_id = item.kinopoisk_id;
 
             let reviewsText = '';
 
-            // Получаем отзывы напрямую из TMDB через встроенный прокси Лампы (до 7 отзывов)
-            if (tmdb_id) {
+            if (kpKey) {
                 try {
-                    let reviewsUrl = Lampa.Api.url(`${media_type}/${tmdb_id}/reviews`);
-                    let reviewsRes = await fetch(reviewsUrl).then(r => r.json());
-                    if (reviewsRes.results && reviewsRes.results.length > 0) {
-                        reviewsText = reviewsRes.results.slice(0, 7).map(r => `[Отзыв]: ${r.content}`).join(' ').substring(0, 3000);
+                    if (!kp_id) {
+                        let searchRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=${encodeURIComponent(title)}`, {
+                            headers: { 'X-API-KEY': kpKey }
+                        }).then(r => r.json());
+                        if (searchRes.films && searchRes.films.length > 0) {
+                            kp_id = searchRes.films[0].filmId;
+                        }
+                    }
+
+                    if (kp_id) {
+                        let reviewsRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.2/films/${kp_id}/reviews?page=1`, {
+                            headers: { 'X-API-KEY': kpKey }
+                        }).then(r => r.json());
+
+                        // Оптимизация: берем топ-5 отзывов и обрезаем до 3000 символов для быстрого ответа
+                        if (reviewsRes.items && reviewsRes.items.length > 0) {
+                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 3000); 
+                        }
                     }
                 } catch (e) {
-                    console.log('Lampa AI Analyzer: Ошибка получения отзывов TMDB', e);
+                    console.log('Lampa AI Analyzer: Ошибка получения отзывов KP', e);
                 }
             }
 
@@ -82,7 +122,7 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            // Используем стабильную модель gemini-3.6-flash
+            // Используем стабильную и мощную модель gemini-3.6-flash
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -157,11 +197,12 @@
             let title = item.title || item.original_title || 'Неизвестный фильм';
 
             let activeGeminiKey = getGeminiKey();
+            let activeKpKey = getKpKey();
 
             let loadingHtml = `
                 <div style="text-align: center; padding: 40px 0; color: #aaa;">
                     <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
-                    <div>Сбор отзывов TMDB и ИИ анализ...<br>Пожалуйста, подождите.</div>
+                    <div>Сбор данных и ИИ анализ...<br>Пожалуйста, подождите.</div>
                 </div>
             `;
             showCustomModal(title, loadingHtml);
@@ -173,7 +214,7 @@
                 return;
             }
 
-            fetchAIAnalysis(data, activeGeminiKey)
+            fetchAIAnalysis(data, activeGeminiKey, activeKpKey)
             .then(parsedData => {
                 let fullHtml = '';
                 
