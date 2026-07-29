@@ -1,24 +1,15 @@
 (function () {
     'use strict';
 
-    // Дефолтные значения (можно оставить пустыми и заполнить в настройках Лампы)
-    const DEFAULT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
-    const DEFAULT_MODEL = 'gemini-3.6-flash';
-    const DEFAULT_KEY = '';
+    // Вставь сюда свои ключи (внутри кавычек), чтобы они работали по умолчанию.
+    // Если оставишь пустыми, плагин попросит ввести их в настройках Лампы.
+    const DEFAULT_GEMINI_KEY = '';
     const DEFAULT_KINOPOISK_KEY = '';
 
-    console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Универсальная версия)');
+    console.log('Lampa Movies Analyzer Plugin: Скрипт загружен (Локальная версия)');
 
-    function getApiUrl() {
-        return Lampa.Storage.get('ai_analyzer_url') || DEFAULT_URL;
-    }
-
-    function getModelName() {
-        return Lampa.Storage.get('ai_analyzer_model') || DEFAULT_MODEL;
-    }
-
-    function getApiKey() {
-        return Lampa.Storage.get('ai_analyzer_key') || DEFAULT_KEY;
+    function getGeminiKey() {
+        return Lampa.Storage.get('ai_analyzer_gemini_key') || DEFAULT_GEMINI_KEY;
     }
 
     function getKpKey() {
@@ -36,70 +27,36 @@
                 icon: `<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/><line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>`
             });
 
-            // 1. URL нейросети
+            // Кнопка для ввода ключа Gemini (открывает нативную клавиатуру Лампы)
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
-                param: { name: 'ai_analyzer_url', type: 'button' },
-                field: {
-                    name: 'URL нейросети (API Endpoint)',
-                    description: 'OpenRouter, DeepSeek, Gemini и т.д.'
+                param: {
+                    name: 'ai_analyzer_gemini_key',
+                    type: 'button'
                 },
-                onChange: function () {
-                    Lampa.Input.edit({
-                        title: 'URL нейросети',
-                        value: Lampa.Storage.get('ai_analyzer_url', DEFAULT_URL),
-                        free: true
-                    }, function (new_val) {
-                        Lampa.Storage.set('ai_analyzer_url', new_val.trim());
-                        Lampa.Settings.update();
-                    });
-                }
-            });
-
-            // 2. Название модели
-            Lampa.SettingsApi.addParam({
-                component: 'ai_analyzer',
-                param: { name: 'ai_analyzer_model', type: 'button' },
                 field: {
-                    name: 'Название модели',
-                    description: 'Например: gemini-3.6-flash или deepseek/deepseek-chat'
-                },
-                onChange: function () {
-                    Lampa.Input.edit({
-                        title: 'Название модели',
-                        value: Lampa.Storage.get('ai_analyzer_model', DEFAULT_MODEL),
-                        free: true
-                    }, function (new_val) {
-                        Lampa.Storage.set('ai_analyzer_model', new_val.trim());
-                        Lampa.Settings.update();
-                    });
-                }
-            });
-
-            // 3. API Ключ нейросети
-            Lampa.SettingsApi.addParam({
-                component: 'ai_analyzer',
-                param: { name: 'ai_analyzer_key', type: 'button' },
-                field: {
-                    name: 'API Ключ нейросети',
+                    name: 'API Ключ Gemini',
                     description: 'Нажмите, чтобы ввести или изменить ключ'
                 },
                 onChange: function () {
                     Lampa.Input.edit({
-                        title: 'API Ключ нейросети',
-                        value: Lampa.Storage.get('ai_analyzer_key', ''),
+                        title: 'API Ключ Gemini',
+                        value: Lampa.Storage.get('ai_analyzer_gemini_key', ''),
                         free: true
                     }, function (new_val) {
-                        Lampa.Storage.set('ai_analyzer_key', new_val.trim());
+                        Lampa.Storage.set('ai_analyzer_gemini_key', new_val.trim());
                         Lampa.Settings.update();
                     });
                 }
             });
 
-            // 4. API Ключ Кинопоиска
+            // Кнопка для ввода ключа Кинопоиска (открывает нативную клавиатуру Лампы)
             Lampa.SettingsApi.addParam({
                 component: 'ai_analyzer',
-                param: { name: 'ai_analyzer_kp_key', type: 'button' },
+                param: {
+                    name: 'ai_analyzer_kp_key',
+                    type: 'button'
+                },
                 field: {
                     name: 'API Ключ Кинопоиск (Unofficial)',
                     description: 'Нажмите, чтобы ввести или изменить ключ'
@@ -117,7 +74,7 @@
             });
         }
 
-        async function fetchAIAnalysis(data, apiUrl, modelName, apiKey, kpKey) {
+        async function fetchAIAnalysis(data, geminiKey, kpKey) {
             let item = data.movie || data;
             let title = item.title || item.original_title || item.name || 'Неизвестный фильм';
             let overview = item.overview || 'Сюжет не найден.';
@@ -141,8 +98,9 @@
                             headers: { 'X-API-KEY': kpKey }
                         }).then(r => r.json());
 
+                        // Оптимизация: берем топ-5 отзывов и обрезаем до 3000 символов для быстрого ответа
                         if (reviewsRes.items && reviewsRes.items.length > 0) {
-                            reviewsText = reviewsRes.items.slice(0, 10).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 15000); 
+                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 3000); 
                         }
                     }
                 } catch (e) {
@@ -164,71 +122,31 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            let jsonText = '';
-            let isOpenAI = apiUrl.includes('chat/completions') || apiUrl.includes('openrouter') || apiUrl.includes('deepseek') || apiUrl.includes('v1/chat');
+            // Используем стабильную и мощную модель gemini-3.6-flash
+            let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { 
+                        response_mime_type: "application/json",
+                        temperature: 0.3
+                    }
+                })
+            });
 
-            if (isOpenAI) {
-                // OpenAI-совместимый формат (OpenRouter, DeepSeek и др.)
-                let res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: modelName,
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: 0.3,
-                        response_format: { type: "json_object" }
-                    })
-                });
-
-                if (!res.ok) {
-                    let errText = await res.text();
-                    throw new Error(`Ошибка API (${res.status}): ${errText.substring(0, 100)}`);
-                }
-
-                let resData = await res.json();
-                if (resData.error) {
-                    throw new Error(resData.error.message || JSON.stringify(resData.error));
-                }
-                jsonText = resData.choices[0].message.content;
-            } else {
-                // Google Gemini формат
-                let finalUrl = apiUrl;
-                if (!finalUrl.includes('?key=')) {
-                    finalUrl += `?key=${apiKey}`;
-                }
-                if (!finalUrl.includes(':generateContent')) {
-                    finalUrl = finalUrl.replace(/\/$/, '') + ':generateContent';
-                }
-
-                let res = await fetch(finalUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { 
-                            response_mime_type: "application/json",
-                            temperature: 0.3
-                        }
-                    })
-                });
-
-                if (!res.ok) {
-                    let errText = await res.text();
-                    throw new Error(`Ошибка Gemini API (${res.status}): ${errText.substring(0, 100)}`);
-                }
-
-                let resData = await res.json();
-                if (resData.error) {
-                    throw new Error(resData.error.message);
-                }
-                jsonText = resData.candidates[0].content.parts[0].text;
+            if (!geminiRes.ok) {
+                let errText = await geminiRes.text();
+                throw new Error(`Ошибка Gemini API (${geminiRes.status}): ${errText.substring(0, 100)}`);
             }
 
-            // Очистка от возможных markdown-тегов
-            jsonText = jsonText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
+            let geminiData = await geminiRes.json();
+            
+            if (geminiData.error) {
+                throw new Error(geminiData.error.message);
+            }
+
+            let jsonText = geminiData.candidates[0].content.parts[0].text;
             return JSON.parse(jsonText);
         }
 
@@ -278,10 +196,8 @@
             let item = data.movie || data;
             let title = item.title || item.original_title || 'Неизвестный фильм';
 
-            let apiUrl = getApiUrl();
-            let modelName = getModelName();
-            let apiKey = getApiKey();
-            let kpKey = getKpKey();
+            let activeGeminiKey = getGeminiKey();
+            let activeKpKey = getKpKey();
 
             let loadingHtml = `
                 <div style="text-align: center; padding: 40px 0; color: #aaa;">
@@ -293,12 +209,12 @@
 
             let contentBox = $('#ai-analysis-content');
 
-            if (!apiKey) {
-                contentBox.html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка: Не указан API ключ нейросети.<br><br>Перейдите в Настройки -> Анализ ИИ и укажите ключ.</div>`);
+            if (!activeGeminiKey) {
+                contentBox.html(`<div style="color: #f44336; text-align: center; padding: 30px;">Ошибка: Не указан API ключ Gemini.<br><br>Перейдите в Настройки -> Анализ ИИ и укажите ключ.</div>`);
                 return;
             }
 
-            fetchAIAnalysis(data, apiUrl, modelName, apiKey, kpKey)
+            fetchAIAnalysis(data, activeGeminiKey, activeKpKey)
             .then(parsedData => {
                 let fullHtml = '';
                 
@@ -348,7 +264,7 @@
 
                 let button = `
                     <div class="full-start__button selector ai-plugin-btn">
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/>
                             <line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                         </svg>
