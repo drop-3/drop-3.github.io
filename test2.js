@@ -74,22 +74,54 @@
             });
         }
 
-        async function fetchAIAnalysis(data, geminiKey) {
+        async function fetchAIAnalysis(data, geminiKey, kpKey) {
             let item = data.movie || data;
             let title = item.title || item.original_title || item.name || 'Неизвестный фильм';
             let overview = item.overview || 'Сюжет не найден.';
-            let year = item.release_date || item.first_air_date || '';
+            let kp_id = item.kinopoisk_id;
 
-            let prompt = `Проанализируй фильм или сериал "${title}" (${year}). Краткий сюжет: ${overview}.
-Верни ответ СТРОГО в формате валидного JSON без markdown разметки (без \`\`\`json). Внутри значений JSON запрещено использовать переносы строк. Ключи должны быть строго такими:
+            let reviewsText = '';
+
+            if (kpKey) {
+                try {
+                    if (!kp_id) {
+                        let searchRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=${encodeURIComponent(title)}`, {
+                            headers: { 'X-API-KEY': kpKey }
+                        }).then(r => r.json());
+                        if (searchRes.films && searchRes.films.length > 0) {
+                            kp_id = searchRes.films[0].filmId;
+                        }
+                    }
+
+                    if (kp_id) {
+                        let reviewsRes = await fetch(`https://kinopoiskapiunofficial.tech/api/v2.2/films/${kp_id}/reviews?page=1`, {
+                            headers: { 'X-API-KEY': kpKey }
+                        }).then(r => r.json());
+
+                        if (reviewsRes.items && reviewsRes.items.length > 0) {
+                            reviewsText = reviewsRes.items.slice(0, 10).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 15000); 
+                        }
+                    }
+                } catch (e) {
+                    console.log('Lampa AI Analyzer: Ошибка получения отзывов KP', e);
+                }
+            }
+
+            let prompt = `Проанализируй фильм/сериал "${title}".
+Официальное описание: ${overview}
+Отзывы зрителей: ${reviewsText ? reviewsText : 'Отзывов нет. Используй свои знания об этом фильме.'}
+
+Тебе нужно составить краткую выжимку. Верни ответ СТРОГО в формате JSON без markdown разметки (без \`\`\`json). 
+Ключи JSON должны быть точно такими:
 {
-  "audience_opinion": "Мнение зрителей в 1-2 абзаца",
-  "critics_opinion": "Мнение критиков в 1-2 абзаца (если нет данных, напиши 'Нет данных')",
-  "pros": ["плюс 1", "плюс 2", "плюс 3"],
-  "cons": ["минус 1", "минус 2"],
-  "target_audience": "Кому стоит посмотреть"
+  "audience_opinion": "Мнение зрителей (сводка на 2-3 абзаца)",
+  "critics_opinion": "Мнение критиков (сводка на 2-3 абзаца, если данных нет, напиши 'Нет данных')",
+  "pros": ["короткий плюс 1", "короткий плюс 2", "короткий плюс 3"],
+  "cons": ["короткий минус 1", "короткий минус 2", "короткий минус 3"],
+  "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
+            // Используем стабильную и мощную модель gemini-3.6-flash из твоего списка
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -97,8 +129,7 @@
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: { 
                         response_mime_type: "application/json",
-                        temperature: 0.3,
-                        maxOutputTokens: 600
+                        temperature: 0.3
                     }
                 })
             });
@@ -114,26 +145,8 @@
                 throw new Error(geminiData.error.message);
             }
 
-            let jsonText = geminiData.candidates[0].content.parts[0].text.trim();
-            jsonText = jsonText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-
-            try {
-                return JSON.parse(jsonText);
-            } catch (parseErr) {
-                // Безопасный резервный парсинг, исключающий любые сбои
-                try {
-                    let sanitized = jsonText.replace(/[\n\r]+/g, " ");
-                    return JSON.parse(sanitized);
-                } catch (err2) {
-                    return {
-                        audience_opinion: "Зрители отмечают захватывающий сюжет и отличную атмосферу.",
-                        critics_opinion: "Проект получил сбалансированные оценки профильных изданий.",
-                        pros: ["Качественная режиссура", "Хорошая актерская игра", "Динамика"],
-                        cons: ["Есть затянутые моменты"],
-                        target_audience: "Любители жанра"
-                    };
-                }
-            }
+            let jsonText = geminiData.candidates[0].content.parts[0].text;
+            return JSON.parse(jsonText);
         }
 
         function showCustomModal(title, htmlContent) {
@@ -183,11 +196,12 @@
             let title = item.title || item.original_title || 'Неизвестный фильм';
 
             let activeGeminiKey = getGeminiKey();
+            let activeKpKey = getKpKey();
 
             let loadingHtml = `
                 <div style="text-align: center; padding: 40px 0; color: #aaa;">
                     <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
-                    <div>ИИ анализ фильма...<br>Пожалуйста, подождите.</div>
+                    <div>Сбор данных и ИИ анализ...<br>Пожалуйста, подождите.</div>
                 </div>
             `;
             showCustomModal(title, loadingHtml);
@@ -199,7 +213,7 @@
                 return;
             }
 
-            fetchAIAnalysis(data, activeGeminiKey)
+            fetchAIAnalysis(data, activeGeminiKey, activeKpKey)
             .then(parsedData => {
                 let fullHtml = '';
                 
@@ -249,7 +263,7 @@
 
                 let button = `
                     <div class="full-start__button selector ai-plugin-btn">
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="13" cy="13" r="9" stroke="currentColor" stroke-width="2.5" fill="transparent"/>
                             <line x1="20" y1="20" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                         </svg>
