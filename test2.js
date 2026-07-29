@@ -98,8 +98,9 @@
                             headers: { 'X-API-KEY': kpKey }
                         }).then(r => r.json());
 
+                        // Оптимизация: берем топ-5 отзывов и обрезаем до 3000 символов для быстрого ответа
                         if (reviewsRes.items && reviewsRes.items.length > 0) {
-                            reviewsText = reviewsRes.items.slice(0, 10).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 15000); 
+                            reviewsText = reviewsRes.items.slice(0, 5).map(r => `[Отзыв зрителя]: ${r.description}`).join('\n\n').substring(0, 3000); 
                         }
                     }
                 } catch (e) {
@@ -121,7 +122,7 @@
   "target_audience": "Кому стоит посмотреть (1-2 предложения)"
 }`;
 
-            // Используем стабильную и мощную модель gemini-3.6-flash из твоего списка
+            // Используем стабильную и мощную модель gemini-3.6-flash
             let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
