@@ -456,7 +456,7 @@
     var ID_MAPPING_CACHE = 'maxsm_ratings_id_mapping_cache';
     var QUALITY_CACHE = 'maxsm_ratings_quality_cache';
     var OMDB_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.OMDB_API_KEYS) || ['1c149048']; 
-    var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['2a4a0808-81a3-40ae-b0d3-e11335ede616']; 
+    var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['58efcdc3-b637-4fdd-bff0-bf95ecaae131']; 
     var PROXY_TIMEOUT = 5000; 
     var JACRED_PROTOCOL = 'http://'; 
     var JACRED_URL = Lampa.Storage.get('jac.red') || 'jac.red'; 
