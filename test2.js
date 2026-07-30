@@ -1,7 +1,8 @@
 /*
-Плагин: maxsm_ratings (Optimized Fork Edition)
-Описание: Легкая версия плагина с рейтингами (Кинопоиск, IMDb, TMDb) и качеством JacRed.
+Плагин: maxsm_ratings (Custom Fork Edition)
+Описание: Легкая версия плагина с рейтингами (TMDb, Кинопоиск, IMDb) и качеством JacRed.
 Вырезаны критики, награды и OMDb API для максимальной скорости работы.
+Элементы создаются динамически для совместимости с кастомными форками Lampa.
 */
 
 (function () {
@@ -95,8 +96,6 @@
     $('body').append(Lampa.Template.get('maxsm_ratings_loading_animation_css', {}, true));
 
     var globalCurrentCard = null;
-    var C_LOGGING = false; 
-    var Q_LOGGING = false; 
     var CACHE_TIME = 3 * 24 * 60 * 60 * 1000; 
     var Q_CACHE_TIME = 24 * 60 * 60 * 1000; 
     
@@ -113,7 +112,7 @@
         'http://cors.bwa.workers.dev/'
     ];
 
-    // Новые веса
+    // Формула весов: TMDb - 40%, KP - 40%, IMDb - 20%
     var WEIGHTS = {
         tmdb: 0.40,
         kp: 0.40,
@@ -123,7 +122,7 @@
     var timeout = new Promise(function(_, reject) {
       setTimeout(function() {
         reject(new Error('Таймаут запроса'));
-      }, 10000); // 10 секунд вместо 360с для избежания вечных ожиданий
+      }, 10000); 
     });
 
     function getIMDBCache(key) {
@@ -291,7 +290,6 @@
                     } catch (e) {}
                 }
 
-                // Резервный запрос к API
                 fetch('https://kinopoiskapiunofficial.tech/api/v2.2/films/' + filmId, {
                     headers: { 'X-API-KEY': apiKey }
                 })
@@ -511,6 +509,31 @@
         }
     }
 
+    // Создаем элементы рейтингов с нуля, если их нет
+    function insertCoreRatings(ratings, localCurrentCard, render) {
+        if (!render) return;
+        var rateLine = $('.full-start-new__rate-line', render);
+        if (!rateLine.length) return;
+        
+        if (ratings.imdb && !isNaN(ratings.imdb) && !$('.rate--imdb', rateLine).length) {
+            var imdbRating = parseFloat(ratings.imdb).toFixed(1);
+            var imdbElement = $('<div class="full-start__rate rate--imdb">' +
+                '<div>' + imdbRating + '</div>' +
+                '<div class="source--name">IMDb</div>' +
+                '</div>');
+            rateLine.append(imdbElement);
+        }
+
+        if (ratings.kp && !isNaN(ratings.kp) && !$('.rate--kp', rateLine).length) {
+            var kpRating = parseFloat(ratings.kp).toFixed(1);
+            var kpElement = $('<div class="full-start__rate rate--kp">' +
+                '<div>' + kpRating + '</div>' +
+                '<div class="source--name">Кинопоиск</div>' +
+                '</div>');
+            rateLine.append(kpElement);
+        }
+    }
+
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
         var localCurrentCard = card.id;
@@ -585,7 +608,9 @@
 
         // Обновление интерфейса
         function updateUI() {
-            updateHiddenElements(ratingsData, localCurrentCard, render);
+            // Динамически вставляем элементы в DOM, если их нет
+            insertCoreRatings(ratingsData, localCurrentCard, render);
+            
             var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
             var mode_view = parseInt(localStorage.getItem('maxsm_ratings_view'), 10);
             
@@ -708,21 +733,6 @@
         Lampa.Storage.set(QUALITY_CACHE, cache);
     }
 
-    function updateHiddenElements(ratings, localCurrentCard, render) {
-        if (!render) return;
-        
-        var imdbElement = $('.rate--imdb', render);
-        if (imdbElement.length && ratings.imdb && !isNaN(ratings.imdb)) {
-            var imdbRating = parseFloat(ratings.imdb).toFixed(1);
-            imdbElement.removeClass('hide').find('> div').eq(0).text(imdbRating);
-        }
-        var kpElement = $('.rate--kp', render);
-        if (kpElement.length && ratings.kp && !isNaN(ratings.kp)) {
-            var kpRating = parseFloat(ratings.kp).toFixed(1);
-            kpElement.removeClass('hide').find('> div').eq(0).text(kpRating);
-        }
-    }
-
     function calculateAverageRating(localCurrentCard, render) {
         if (!render) return;
         var rateLine = $('.full-start-new__rate-line', render);
@@ -759,7 +769,6 @@
             
             if (mode === 1) {
                 avgLabel = Lampa.Lang.translate("maxsm_ratings_avg_simple");
-                // Скрываем все рейтинги, кроме итогового
                 $('.full-start__rate', rateLine).not('.rate--avg').hide();
             }
             
@@ -796,20 +805,26 @@
             icon: star_svg
         });
 
-        // Ввод ключа Кинопоиска
+        // Безопасный ввод ключа через нативную клавиатуру/модалку (кнопка)
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_kp_key",
-                type: "input",
-                default: "2a4a0808-81a3-40ae-b0d3-e11335ede616"
-            },
+            param: { name: "maxsm_ratings_kp_key_btn", type: "button" },
             field: {
                 name: Lampa.Lang.translate("maxsm_ratings_kp_key"),
-                description: 'Введите ваш ключ от API kinopoiskapiunofficial.tech'
+                description: 'Нажмите, чтобы ввести или изменить ключ'
             },
-            onChange: function (value) {
-                Lampa.Storage.set('maxsm_ratings_kp_key', value);
+            onChange: function () {
+                var currentKey = Lampa.Storage.get('maxsm_ratings_kp_key') || '2a4a0808-81a3-40ae-b0d3-e11335ede616';
+                Lampa.Input.edit({
+                    title: Lampa.Lang.translate("maxsm_ratings_kp_key"),
+                    value: currentKey,
+                    free: true,
+                    nosave: true
+                }, function (new_value) {
+                    if (new_value) {
+                        Lampa.Storage.set('maxsm_ratings_kp_key', new_value.trim());
+                    }
+                });
             }
         });
 
