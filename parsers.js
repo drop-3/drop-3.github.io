@@ -1,27 +1,24 @@
 (function () {
     'use strict';
 
-    // Изменено на v4.3
-    var STORAGE_PARSERS = 'ps_list_combo_v4.3';
+    // Версия хранилища обновлена до v4.8 для применения нового списка
+    var STORAGE_PARSERS = 'ps_list_combo_v4.8';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.3';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.8';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Обновленный список парсеров
+    // Очищенный список парсеров (без Toloka/Spawn)
     var DEFAULT_PARSERS = [
-        { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_59117', shortName: 'Spawn (2)', name: 'SpawnUA (toloka, mazepa, etc.)', url: 'http://spawnum.duckdns.org:59117', settings: { key: '2', parser_torrent_type: 'jackett' } },
         { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacred_ru_new', shortName: 'Jacred.ru', name: 'Jacred.ru', url: 'jacred.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
-        { base: 'jacred_xyz', shortName: 'Jacred.xyz', name: 'Jacred.xyz', url: 'jacred.xyz', settings: { key: '', parser_torrent_type: 'jackett' } },
+        { base: 'jacred_su', shortName: 'JacRed.su', name: 'JacRed.su', url: 'jacred.su', settings: { key: '', parser_torrent_type: 'jackett' } },
+        { base: 'lampa_jacred', shortName: 'Lampa Jacred', name: 'Lampa Jacred', url: '87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
         { base: 'jac_red_ru', shortName: 'Jac-red.ru', name: 'Jac-red.ru', url: 'jac-red.ru', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jac_stull', shortName: 'Jac.Stull', name: 'Jac.stull', url: 'jac.stull.xyz', settings: { key: '1', parser_torrent_type: 'jackett' } },
         { base: 'jr_maxvol', shortName: 'Jr.Maxvol', name: 'Jr.Maxvol.pro', url: 'jr.maxvol.pro', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'maxvol_pro', shortName: 'Jac.Maxvol', name: 'Jac.Maxvol.pro', url: 'jac.maxvol.pro', settings: { key: '1', parser_torrent_type: 'jackett' } },
-        { base: 'no_name', shortName: 'NoName', name: 'NoName', url: 'http://87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
-        { base: '407_xyz', shortName: '407-Xyz', name: '407-Xyz', url: '11.307407.xyz', settings: { key: '', parser_torrent_type: 'jackett' } }
+        { base: 'no_name', shortName: 'NoName', name: 'NoName', url: '87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
+        { base: 'freebie', shortName: 'Freebie', name: 'Freebie', url: 'jacred.freebie.tom.ru', settings: { key: '1', parser_torrent_type: 'jackett' } }
     ];
 
     function getProto() {
@@ -95,7 +92,6 @@
         if (j_url2) Lampa.Storage.set('jackett_url_two', applyProxy(j_url2, 'secondary'));
     }
 
-    // Полный перевод всех строк на русский язык
     function translate() {
         Lampa.Lang.add({
             bat_parser: { en: 'Parsers catalog', uk: 'Каталог парсеров', zh: '解析器目录', ru: 'Каталог парсеров' },
@@ -116,10 +112,8 @@
             bat_status_checking_search: { en: 'Checking search…', uk: 'Проверка поиска…', zh: '检查搜索…', ru: 'Проверка поиска…' },
             bat_status_search_ok: { en: 'Search works', uk: 'Поиск работает', zh: '搜索可用', ru: 'Поиск работает' },
             bat_status_search_bad: { en: 'Search does not work', uk: 'Поиск не работает', zh: '搜索不可用', ru: 'Поиск не работает' },
-            
             bat_parser_proxy: { en: 'Enable proxy', uk: 'Включить прокси', zh: '启用代理', ru: 'Включить прокси' },
             bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Добавляет прокси перед адресом парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
-            
             bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для какого парсера (прокси)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
             bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' }
         });
@@ -144,9 +138,7 @@
         }
     };
 
-    function notifyDone() {
-        // Уведомление отключено
-    }
+    function notifyDone() {}
 
     function getSelectedBase() { 
         return Lampa.Storage.get(STORAGE_PRI_ACT, NO_PARSER); 
@@ -183,44 +175,121 @@
         return ['https://', 'http://'];
     }
 
-    function ajaxTryUrls(urls, timeout) {
-        return new Promise(function (resolve) {
-            var idx = 0;
-            function attempt() {
-                if (idx >= urls.length) { resolve({ ok: false, xhr: null, url: null, network: true }); return; }
-                var url = urls[idx++];
-                $.ajax({
-                    url: url, method: 'GET', timeout: timeout,
-                    success: function (data, textStatus, xhr) { resolve({ ok: true, xhr: xhr, url: url, data: data }); },
-                    error: function (xhr) {
-                        var status = xhr && typeof xhr.status === 'number' ? xhr.status : 0;
-                        if (status === 0) attempt(); else resolve({ ok: false, xhr: xhr, url: url, network: false });
-                    }
-                });
+    function requestPing(url) {
+        return new Promise(function(resolve) {
+            var timeout = 12000;
+            var done = false;
+            function finish(ok, status) {
+                if (done) return;
+                done = true;
+                resolve({ ok: ok, status: status, url: url });
             }
-            attempt();
+
+            if (typeof Lampa !== 'undefined' && Lampa.Reguest) {
+                try {
+                    var net = new Lampa.Reguest();
+                    var timer = setTimeout(function () {
+                        try { net.clear(); } catch (e) {}
+                        finish(false, 'timeout');
+                    }, timeout);
+
+                    net.native(url, function (data) {
+                        clearTimeout(timer);
+                        var isJson = true;
+                        if (typeof data === 'string' && data.trim().indexOf('<') === 0) {
+                            isJson = false; 
+                        }
+                        finish(isJson, 200);
+                    }, function (xhr) {
+                        clearTimeout(timer);
+                        var code = (xhr && xhr.status) || 'error';
+                        finish(false, code);
+                    });
+                    return;
+                } catch (e) {}
+            }
+
+            var xhr = new XMLHttpRequest();
+            xhr.timeout = timeout;
+            xhr.onload = function () { 
+                var isJson = true;
+                if (xhr.status === 200 && typeof xhr.responseText === 'string' && xhr.responseText.trim().indexOf('<') === 0) {
+                    isJson = false;
+                }
+                finish(xhr.status === 200 && isJson, xhr.status); 
+            };
+            xhr.ontimeout = function () { finish(false, 'timeout'); };
+            xhr.onerror = function () { finish(false, 'error'); };
+            try {
+                xhr.open('GET', url, true);
+                xhr.send();
+            } catch (e) {
+                finish(false, 'error');
+            }
         });
     }
 
-    // ---- НАЧАЛО БЛОКА: Улучшенная генерация ссылок
+    function statusMeansAlive(status) {
+        return typeof status === 'number' && status > 0 && status < 500 && status !== 401;
+    }
+
+    function smartTryUrls(urls) {
+        return new Promise(function (resolve) {
+            var pending = urls.length;
+            var settled = false;
+            var lastStatus = 'error';
+            var sawAuthError = false;
+
+            if (pending === 0) return resolve({ ok: false, status: lastStatus });
+
+            urls.forEach(function (url) {
+                requestPing(url).then(function(res) {
+                    if (settled) return;
+                    pending--;
+                    
+                    if (typeof res.status === 'number') lastStatus = res.status;
+                    if (res.status === 401) sawAuthError = true;
+
+                    if (res.ok || statusMeansAlive(res.status)) {
+                        settled = true;
+                        resolve({ ok: true, status: res.status });
+                        return;
+                    }
+
+                    if (pending <= 0) {
+                        settled = true;
+                        resolve({ ok: false, status: sawAuthError ? 401 : lastStatus });
+                    }
+                });
+            });
+        });
+    }
+
     function healthUrlCandidates(parser) {
         var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
         var type = (parser.settings && parser.settings.parser_torrent_type) || 'jackett';
-        var path = (type === 'prowlarr') ? '/api/v1/health?apikey=' + key : '/api/v2.0/indexers/status:healthy/results?apikey=' + key;
-        
         var cleanUrl = stripProxy(parser.url); 
         var protos = protocolCandidatesFor(cleanUrl);
-        
-        var urls = protos.map(function (p) { 
-            return p + cleanUrl + path; 
-        });
-
-        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для проверки
         var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-        if (proxyVal === true || proxyVal === 'true') {
-            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
-            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
+        var useProxy = (proxyVal === true || proxyVal === 'true');
+        
+        var paths = [];
+        if (type === 'prowlarr') {
+            paths.push('/api/v1/health?apikey=' + key);
+            paths.push('/');
+        } else {
+            paths.push('/api/v2.0/indexers/all/results?apikey=' + key + '&query=zzqxwv');
+            paths.push('/api/v1.0/torrents?search=zzqxwv&apikey=' + key);
+            paths.push('/');
         }
+
+        var urls = [];
+        protos.forEach(function (p) {
+            paths.forEach(function(path) {
+                urls.push(p + cleanUrl + path);
+                if (useProxy) urls.push(PROXY_PREFIX + p + cleanUrl + path);
+            });
+        });
         return urls;
     }
 
@@ -230,34 +299,30 @@
         
         var cleanUrl = stripProxy(parser.url);
         var protos = protocolCandidatesFor(cleanUrl);
-        
-        var urls = protos.map(function (p) { 
-            return p + cleanUrl + path; 
-        });
-
-        // Если включен прокси в настройках, добавляем прокси-ссылку как резервную для поиска
         var proxyVal = Lampa.Storage.get('parser_use_proxy', false);
-        if (proxyVal === true || proxyVal === 'true') {
-            urls.push(PROXY_PREFIX + 'https://' + cleanUrl + path);
-            urls.push(PROXY_PREFIX + 'http://' + cleanUrl + path);
-        }
+        var useProxy = (proxyVal === true || proxyVal === 'true');
+        
+        var urls = [];
+        protos.forEach(function (p) { 
+            urls.push(p + cleanUrl + path); 
+            if (useProxy) urls.push(PROXY_PREFIX + p + cleanUrl + path);
+        });
         return urls;
     }
-    // ---- КОНЕЦ БЛОКА ----
 
     function runHealthChecks(parsers) {
         var map = {};
         var requests = parsers.map(function (parser) {
             return new Promise(function (resolve) {
                 var urls = healthUrlCandidates(parser);
-                var cacheKey = 'health::' + parser.base + '::direct::' + urls.join('|');
+                var cacheKey = 'health::' + parser.base + '::direct';
                 var cached = cache.get(cacheKey);
                 if (cached) { map[parser.base] = cached.value; resolve(); return; }
 
-                ajaxTryUrls(urls, 5000).then(function (res) {
+                smartTryUrls(urls).then(function (res) {
                     var val;
                     if (res.ok) val = { color: COLOR_OK, labelKey: 'bat_status_server_ok' };
-                    else if (res.network === false) val = { color: COLOR_WARN, labelKey: 'bat_status_server_warn' };
+                    else if (res.status === 401) val = { color: COLOR_WARN, labelKey: 'bat_status_server_warn' };
                     else val = { color: COLOR_BAD, labelKey: 'bat_status_server_bad' };
                     map[parser.base] = val; cache.set(cacheKey, val, cache.ttlHealth); resolve();
                 });
@@ -278,7 +343,7 @@
                 var cached = cache.get(cacheKey);
                 if (cached) { map[parser.base] = cached.value; resolve(); return; }
 
-                ajaxTryUrls(urls, 6000).then(function (res) {
+                smartTryUrls(urls).then(function (res) {
                     var val = res.ok ? { color: COLOR_OK, labelKey: 'bat_status_search_ok' } : { color: COLOR_BAD, labelKey: 'bat_status_search_bad' };
                     map[parser.base] = val; cache.set(cacheKey, val, cache.ttlSearch); resolve();
                 });
@@ -335,11 +400,9 @@
         wrapper.find('.bat-parser-modal__current-value').text(parser ? parser.name : Lampa.Lang.translate('bat_parser_none'));
     }
 
-    // Блокировка от случайного дублирования окон на сенсорном экране
     var modalOpenLock = false;
 
     function openParserModal() {
-        // Если окно уже открывается или уже висит на экране - игнорируем нажатие
         if (modalOpenLock || $('.bat-parser-modal').length > 0) return;
         modalOpenLock = true;
         setTimeout(function () { modalOpenLock = false; }, 600);
@@ -416,7 +479,6 @@
             title: Lampa.Lang.translate('bat_parser'), html: modal, size: 'medium', scroll_to_center: true, select: firstSelectable,
             onBack: function () { 
                 Lampa.Modal.close(); 
-                // Восстанавливаем фокус только если это не мобильный тач-контроллер
                 if (active_component && active_component !== 'modal' && active_component !== 'touch') {
                     Lampa.Controller.toggle(active_component); 
                 }
@@ -426,7 +488,6 @@
         runHealthUI();
     }
 
-    // Добавление кнопки с иконкой магнита в верхний бар
     function addTopBarButton() {
         if ($('.bat-top-parser-btn').length) return;
         var head_actions = $('.head__actions');
@@ -442,7 +503,6 @@
             '</div>'
         );
 
-        // Используем ТОЛЬКО hover:enter, чтобы не было двойного открытия на тачскринах смартфонов
         btn.on('hover:enter', function () {
             openParserModal();
         });
@@ -583,7 +643,6 @@
 
     function buildSecondaryButton() {
         var btn = $('<div class="simple-button simple-button--filter selector filter--parser">' + ICON + '<div class="ps-name">' + activeShortName() + '</div></div>');
-        // Используем только hover:enter от дублирования
         btn.on('hover:enter', function () { openSecondarySelectMenu(btn); });
         return btn;
     }
@@ -851,34 +910,30 @@
         }
     }
 
-    // ---- НАЧАЛО БЛОКА: Глобальная защита от вызова "Меню Выхода" на смартфонах ----
     function initMobileBackProtection() {
         if (window.__bat_parser_back_protected) return;
         window.__bat_parser_back_protected = true;
 
-        // Перехватываем штатный обработчик Назад контроллера
         var origControllerBack = Lampa.Controller.back;
         Lampa.Controller.back = function () {
             if ($('.bat-parser-modal').length > 0) {
                 Lampa.Modal.close();
-                return true; // Говорим Lampa, что закрыли окно, дальше ничего делать не нужно!
+                return true; 
             }
             if (origControllerBack) return origControllerBack.apply(this, arguments);
         };
 
-        // Перехватываем штатный обработчик Назад активности (чтобы не открывалось окно "Выход из приложения")
         if (Lampa.Activity && Lampa.Activity.back) {
             var origActivityBack = Lampa.Activity.back;
             Lampa.Activity.back = function () {
                 if ($('.bat-parser-modal').length > 0) {
                     Lampa.Modal.close();
-                    return true; // Говорим Lampa, что закрыли окно, не нужно вызывать меню выхода!
+                    return true; 
                 }
                 if (origActivityBack) return origActivityBack.apply(this, arguments);
             };
         }
     }
-    // ---- КОНЕЦ БЛОКА ----
 
     function initAll() {
         Lampa.Lang.add = Lampa.Lang.add || function() {};
@@ -887,7 +942,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V13 - Ultimate RU + TopBar + ProxyFallbacks] Loaded successfully');
+        console.log('[CombinedParserPlugin V18 - Removed Toloka/Spawn for Faster Startup] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
