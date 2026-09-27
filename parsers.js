@@ -1,14 +1,14 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.11 (железобетонное сохранение ползунка)
+    // Версия хранилища обновлена до v4.11
     var STORAGE_PARSERS = 'ps_list_combo_v4.11';
     var STORAGE_PRI_ACT = 'bat_url_two';
     var STORAGE_SEC_ACT = 'ps_active_sec_v4.11';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Очищенный список парсеров
+    // Список парсеров
     var DEFAULT_PARSERS = [
         { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jacred_su', shortName: 'JacRed.su', name: 'JacRed.su', url: 'jacred.su', settings: { key: '', parser_torrent_type: 'jackett' } },
@@ -449,7 +449,7 @@
         modal.find('.bat-parser-modal__toggle-label').text(Lampa.Lang.translate('bat_parser_toggle_btn'));
         updateCurrentLabel(modal, selected);
 
-        // ИСПРАВЛЕНИЕ: Читаем через безопасную функцию
+        // Читаем через безопасную функцию
         var toggleBtn = modal.find('.bat-parser-modal__toggle');
         var isShowTopBtn = isTopBtnOn();
         
@@ -546,7 +546,7 @@
     }
 
     function addTopBarButton() {
-        // ИСПРАВЛЕНИЕ: Читаем через безопасную функцию
+        // Читаем через безопасную функцию
         if (!isTopBtnOn()) {
             $('.bat-top-parser-btn').remove();
             return;
