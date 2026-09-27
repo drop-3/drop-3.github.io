@@ -1,10 +1,10 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.10 (исправлено чтение состояния ползунка)
-    var STORAGE_PARSERS = 'ps_list_combo_v4.10';
+    // Версия хранилища обновлена до v4.11 (железобетонное сохранение ползунка)
+    var STORAGE_PARSERS = 'ps_list_combo_v4.11';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.10';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.11';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
@@ -408,6 +408,17 @@
         wrapper.find('.bat-parser-modal__current-value').text(parser ? parser.name : Lampa.Lang.translate('bat_parser_none'));
     }
 
+    // --- ФУНКЦИИ ДЛЯ БЕЗОПАСНОГО ЧТЕНИЯ СОСТОЯНИЯ ПОЛЗУНКА ---
+    function isTopBtnOn() {
+        // Читаем явную строку, по умолчанию 'on'
+        return Lampa.Storage.get('bat_parser_show_top_btn_v2', 'on') === 'on';
+    }
+
+    function setTopBtnOn(state) {
+        // Сохраняем только явные строки 'on' и 'off'
+        Lampa.Storage.set('bat_parser_show_top_btn_v2', state ? 'on' : 'off');
+    }
+
     var modalOpenLock = false;
 
     function openParserModal() {
@@ -438,10 +449,9 @@
         modal.find('.bat-parser-modal__toggle-label').text(Lampa.Lang.translate('bat_parser_toggle_btn'));
         updateCurrentLabel(modal, selected);
 
-        // ИСПРАВЛЕНИЕ: Строгая проверка на логическое true или строку 'true'
+        // ИСПРАВЛЕНИЕ: Читаем через безопасную функцию
         var toggleBtn = modal.find('.bat-parser-modal__toggle');
-        var topBtnVal = Lampa.Storage.get('bat_parser_show_top_btn', true);
-        var isShowTopBtn = (topBtnVal === true || topBtnVal === 'true');
+        var isShowTopBtn = isTopBtnOn();
         
         if (isShowTopBtn) {
             toggleBtn.addClass('is-active');
@@ -451,7 +461,8 @@
 
         toggleBtn.on('hover:enter', function() {
             isShowTopBtn = !isShowTopBtn;
-            Lampa.Storage.set('bat_parser_show_top_btn', isShowTopBtn);
+            setTopBtnOn(isShowTopBtn); // Сохраняем как 'on'/'off'
+            
             if (isShowTopBtn) {
                 toggleBtn.addClass('is-active');
                 addTopBarButton();
@@ -535,9 +546,8 @@
     }
 
     function addTopBarButton() {
-        // ИСПРАВЛЕНИЕ: Строгая проверка при добавлении значка
-        var topBtnVal = Lampa.Storage.get('bat_parser_show_top_btn', true);
-        if (topBtnVal === false || topBtnVal === 'false') {
+        // ИСПРАВЛЕНИЕ: Читаем через безопасную функцию
+        if (!isTopBtnOn()) {
             $('.bat-top-parser-btn').remove();
             return;
         }
@@ -995,7 +1005,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V20 - Fixed String Boolean in Toggle] Loaded successfully');
+        console.log('[CombinedParserPlugin V21 - Bulletproof UI Toggle State] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
