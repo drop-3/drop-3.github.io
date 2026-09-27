@@ -1,14 +1,14 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.9 (добавлен переключатель кнопки)
-    var STORAGE_PARSERS = 'ps_list_combo_v4.9';
+    // Версия хранилища обновлена до v4.10 (исправлено чтение состояния ползунка)
+    var STORAGE_PARSERS = 'ps_list_combo_v4.10';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.9';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.10';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Очищенный список парсеров (без Toloka/Spawn)
+    // Очищенный список парсеров
     var DEFAULT_PARSERS = [
         { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jacred_su', shortName: 'JacRed.su', name: 'JacRed.su', url: 'jacred.su', settings: { key: '', parser_torrent_type: 'jackett' } },
@@ -419,7 +419,6 @@
         var selected = getSelectedBase();
         var listData = getParsers();
 
-        // Добавлен блок .bat-parser-modal__toggle
         var modal = $("<div class='bat-parser-modal'>" +
             "<div class='bat-parser-modal__head'>" +
                 "<div class='bat-parser-modal__current'>" +
@@ -439,10 +438,16 @@
         modal.find('.bat-parser-modal__toggle-label').text(Lampa.Lang.translate('bat_parser_toggle_btn'));
         updateCurrentLabel(modal, selected);
 
-        // Обработка переключателя значка
+        // ИСПРАВЛЕНИЕ: Строгая проверка на логическое true или строку 'true'
         var toggleBtn = modal.find('.bat-parser-modal__toggle');
-        var isShowTopBtn = Lampa.Storage.get('bat_parser_show_top_btn', true);
-        if (isShowTopBtn) toggleBtn.addClass('is-active');
+        var topBtnVal = Lampa.Storage.get('bat_parser_show_top_btn', true);
+        var isShowTopBtn = (topBtnVal === true || topBtnVal === 'true');
+        
+        if (isShowTopBtn) {
+            toggleBtn.addClass('is-active');
+        } else {
+            toggleBtn.removeClass('is-active');
+        }
 
         toggleBtn.on('hover:enter', function() {
             isShowTopBtn = !isShowTopBtn;
@@ -530,8 +535,9 @@
     }
 
     function addTopBarButton() {
-        // Проверка: отключена ли кнопка в настройках пользователем
-        if (Lampa.Storage.get('bat_parser_show_top_btn', true) === false) {
+        // ИСПРАВЛЕНИЕ: Строгая проверка при добавлении значка
+        var topBtnVal = Lampa.Storage.get('bat_parser_show_top_btn', true);
+        if (topBtnVal === false || topBtnVal === 'false') {
             $('.bat-top-parser-btn').remove();
             return;
         }
@@ -989,7 +995,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V19 - Added Topbar Toggle Switch] Loaded successfully');
+        console.log('[CombinedParserPlugin V20 - Fixed String Boolean in Toggle] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
