@@ -1,10 +1,10 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.8 для применения нового списка
-    var STORAGE_PARSERS = 'ps_list_combo_v4.8';
+    // Версия хранилища обновлена до v4.9 (добавлен переключатель кнопки)
+    var STORAGE_PARSERS = 'ps_list_combo_v4.9';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.8';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.9';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
@@ -115,7 +115,8 @@
             bat_parser_proxy: { en: 'Enable proxy', uk: 'Включить прокси', zh: '启用代理', ru: 'Включить прокси' },
             bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Добавляет прокси перед адресом парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
             bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для какого парсера (прокси)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
-            bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' }
+            bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' },
+            bat_parser_toggle_btn: { en: 'Menu icon', uk: 'Значок в меню', zh: '菜单图标', ru: 'Значок в меню' }
         });
     }
 
@@ -361,6 +362,13 @@
             ".bat-parser-modal__head{display:flex;align-items:center;justify-content:space-between;gap:1em}\n" +
             ".bat-parser-modal__current-label{font-size:.9em;opacity:.7}\n" +
             ".bat-parser-modal__current-value{font-size:1.1em}\n" +
+            ".bat-parser-modal__toggle{display:flex;align-items:center;gap:.6em;padding:.4em .8em;border-radius:.6em;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}\n" +
+            ".bat-parser-modal__toggle.focus{border-color:#fff}\n" +
+            ".bat-parser-modal__toggle-label{font-size:.9em;opacity:.8}\n" +
+            ".bat-parser-modal__switch{width:2.2em;height:1.2em;background:rgba(255,255,255,.2);border-radius:1em;position:relative;transition:.3s}\n" +
+            ".bat-parser-modal__switch::after{content:'';position:absolute;top:.1em;left:.1em;width:1em;height:1em;background:#fff;border-radius:50%;transition:.3s}\n" +
+            ".bat-parser-modal__toggle.is-active .bat-parser-modal__switch{background:" + COLOR_OK + "}\n" +
+            ".bat-parser-modal__toggle.is-active .bat-parser-modal__switch::after{transform:translateX(1em)}\n" +
             ".bat-parser-modal__list{display:flex;flex-direction:column;gap:.6em}\n" +
             ".bat-parser-modal__item{display:flex;align-items:center;justify-content:space-between;gap:1em;padding:.8em 1em;border-radius:.7em;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}\n" +
             ".bat-parser-modal__item.is-selected,.bat-parser-modal__item.focus{border-color:#fff}\n" +
@@ -411,9 +419,42 @@
         var selected = getSelectedBase();
         var listData = getParsers();
 
-        var modal = $("<div class='bat-parser-modal'><div class='bat-parser-modal__head'><div class='bat-parser-modal__current'><div class='bat-parser-modal__current-label'></div><div class='bat-parser-modal__current-value'></div></div></div><div class='bat-parser-modal__list'></div><div class='bat-parser-modal__actions'></div></div>");
+        // Добавлен блок .bat-parser-modal__toggle
+        var modal = $("<div class='bat-parser-modal'>" +
+            "<div class='bat-parser-modal__head'>" +
+                "<div class='bat-parser-modal__current'>" +
+                    "<div class='bat-parser-modal__current-label'></div>" +
+                    "<div class='bat-parser-modal__current-value'></div>" +
+                "</div>" +
+                "<div class='bat-parser-modal__toggle selector'>" +
+                    "<div class='bat-parser-modal__toggle-label'></div>" +
+                    "<div class='bat-parser-modal__switch'></div>" +
+                "</div>" +
+            "</div>" +
+            "<div class='bat-parser-modal__list'></div>" +
+            "<div class='bat-parser-modal__actions'></div>" +
+        "</div>");
+        
         modal.find('.bat-parser-modal__current-label').text(Lampa.Lang.translate('bat_parser_current'));
+        modal.find('.bat-parser-modal__toggle-label').text(Lampa.Lang.translate('bat_parser_toggle_btn'));
         updateCurrentLabel(modal, selected);
+
+        // Обработка переключателя значка
+        var toggleBtn = modal.find('.bat-parser-modal__toggle');
+        var isShowTopBtn = Lampa.Storage.get('bat_parser_show_top_btn', true);
+        if (isShowTopBtn) toggleBtn.addClass('is-active');
+
+        toggleBtn.on('hover:enter', function() {
+            isShowTopBtn = !isShowTopBtn;
+            Lampa.Storage.set('bat_parser_show_top_btn', isShowTopBtn);
+            if (isShowTopBtn) {
+                toggleBtn.addClass('is-active');
+                addTopBarButton();
+            } else {
+                toggleBtn.removeClass('is-active');
+                $('.bat-top-parser-btn').remove();
+            }
+        });
 
         var list = modal.find('.bat-parser-modal__list');
         var noneItem = buildParserItem(NO_PARSER, Lampa.Lang.translate('bat_parser_none'));
@@ -489,6 +530,12 @@
     }
 
     function addTopBarButton() {
+        // Проверка: отключена ли кнопка в настройках пользователем
+        if (Lampa.Storage.get('bat_parser_show_top_btn', true) === false) {
+            $('.bat-top-parser-btn').remove();
+            return;
+        }
+
         if ($('.bat-top-parser-btn').length) return;
         var head_actions = $('.head__actions');
         if (!head_actions.length) return;
@@ -942,7 +989,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V18 - Removed Toloka/Spawn for Faster Startup] Loaded successfully');
+        console.log('[CombinedParserPlugin V19 - Added Topbar Toggle Switch] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
