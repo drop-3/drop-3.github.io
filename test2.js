@@ -1,18 +1,15 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.4, чтобы у пользователей сбросился старый список
-    var STORAGE_PARSERS = 'ps_list_combo_v4.4';
+    // Версия хранилища обновлена до v4.8 для применения нового списка
+    var STORAGE_PARSERS = 'ps_list_combo_v4.8';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.4';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.8';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Обновленный список парсеров
+    // Очищенный список парсеров (без Toloka/Spawn)
     var DEFAULT_PARSERS = [
-        { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
-        { base: 'spawnum_duckdns_org_59117', shortName: 'Spawn (2)', name: 'SpawnUA (toloka, mazepa, etc.)', url: 'http://spawnum.duckdns.org:59117', settings: { key: '2', parser_torrent_type: 'jackett' } },
         { base: 'jac_red', shortName: 'Jac.red', name: 'Jac.red', url: 'Jac.red', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'jacred_su', shortName: 'JacRed.su', name: 'JacRed.su', url: 'jacred.su', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'lampa_jacred', shortName: 'Lampa Jacred', name: 'Lampa Jacred', url: '87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
@@ -20,7 +17,7 @@
         { base: 'jac_stull', shortName: 'Jac.Stull', name: 'Jac.stull', url: 'jac.stull.xyz', settings: { key: '1', parser_torrent_type: 'jackett' } },
         { base: 'jr_maxvol', shortName: 'Jr.Maxvol', name: 'Jr.Maxvol.pro', url: 'jr.maxvol.pro', settings: { key: '', parser_torrent_type: 'jackett' } },
         { base: 'maxvol_pro', shortName: 'Jac.Maxvol', name: 'Jac.Maxvol.pro', url: 'jac.maxvol.pro', settings: { key: '1', parser_torrent_type: 'jackett' } },
-        { base: 'no_name', shortName: 'NoName', name: 'NoName', url: 'http://87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
+        { base: 'no_name', shortName: 'NoName', name: 'NoName', url: '87.120.84.218:9117', settings: { key: '333', parser_torrent_type: 'jackett' } },
         { base: 'freebie', shortName: 'Freebie', name: 'Freebie', url: 'jacred.freebie.tom.ru', settings: { key: '1', parser_torrent_type: 'jackett' } }
     ];
 
@@ -178,10 +175,9 @@
         return ['https://', 'http://'];
     }
 
-    // ---- НАЧАЛО БЛОКА: Новая проверка через нативные запросы Лампы (Обход CORS) ----
     function requestPing(url) {
         return new Promise(function(resolve) {
-            var timeout = 6000;
+            var timeout = 12000;
             var done = false;
             function finish(ok, status) {
                 if (done) return;
@@ -200,7 +196,6 @@
                     net.native(url, function (data) {
                         clearTimeout(timer);
                         var isJson = true;
-                        // Защита от ложно-зеленого: если прокси вернул HTML-ошибку вместо JSON парсера
                         if (typeof data === 'string' && data.trim().indexOf('<') === 0) {
                             isJson = false; 
                         }
@@ -214,7 +209,6 @@
                 } catch (e) {}
             }
 
-            // Запасной вариант для ПК браузеров
             var xhr = new XMLHttpRequest();
             xhr.timeout = timeout;
             xhr.onload = function () { 
@@ -315,7 +309,6 @@
         });
         return urls;
     }
-    // ---- КОНЕЦ БЛОКА ----
 
     function runHealthChecks(parsers) {
         var map = {};
@@ -949,7 +942,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V14 - Native Status & Proxy Check] Loaded successfully');
+        console.log('[CombinedParserPlugin V18 - Removed Toloka/Spawn for Faster Startup] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
