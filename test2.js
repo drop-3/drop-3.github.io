@@ -1,14 +1,14 @@
 (function () {
     'use strict';
 
-    // Версия хранилища обновлена до v4.5 для сброса адреса nomame
-    var STORAGE_PARSERS = 'ps_list_combo_v4.5';
+    // Версия хранилища обновлена до v4.6 для полного сброса
+    var STORAGE_PARSERS = 'ps_list_combo_v4.6';
     var STORAGE_PRI_ACT = 'bat_url_two';
-    var STORAGE_SEC_ACT = 'ps_active_sec_v4.5';
+    var STORAGE_SEC_ACT = 'ps_active_sec_v4.6';
     var NO_PARSER       = 'no_parser';
     var PROXY_PREFIX    = 'https://parserbridge.lampame.v6.rocks/';
 
-    // Обновленный список парсеров (Исправлен адрес NoName)
+    // Наш актуальный список парсеров
     var DEFAULT_PARSERS = [
         { base: 'lampa_ua', shortName: 'LampaUA', name: 'LampaUA (toloka, mazepa, etc.)', url: 'jackettua.mooo.com', displayUrl: 'http://jackettua.mooo.com', settings: { key: 'ua', parser_torrent_type: 'jackett' } },
         { base: 'spawnum_duckdns_org_49117', shortName: 'Spawn (1)', name: 'SpawnUA (toloka, mazepa only)', url: 'http://spawnum.duckdns.org:49117', settings: { key: '2', parser_torrent_type: 'jackett' } },
@@ -178,6 +178,7 @@
         return ['https://', 'http://'];
     }
 
+    // --- Нативная проверка возвращена к оригинальной логике "Любой ответ = ЖИВ" ---
     function requestPing(url) {
         return new Promise(function(resolve) {
             var timeout = 6000;
@@ -198,12 +199,7 @@
 
                     net.native(url, function (data) {
                         clearTimeout(timer);
-                        // Если вместо JSON парсера прокси отдает HTML-заглушку с ошибкой — возвращаем 500, чтобы сбросить проверку
-                        if (typeof data === 'string' && data.trim().indexOf('<') === 0) {
-                            finish(false, 500); 
-                        } else {
-                            finish(true, 200);
-                        }
+                        finish(true, 200); // Мы больше не блокируем HTML!
                     }, function (xhr) {
                         clearTimeout(timer);
                         var code = (xhr && xhr.status) || 'error';
@@ -216,11 +212,7 @@
             var xhr = new XMLHttpRequest();
             xhr.timeout = timeout;
             xhr.onload = function () { 
-                if (xhr.status === 200 && typeof xhr.responseText === 'string' && xhr.responseText.trim().indexOf('<') === 0) {
-                    finish(false, 500);
-                } else {
-                    finish(xhr.status === 200, xhr.status); 
-                }
+                finish(xhr.status === 200, xhr.status); 
             };
             xhr.ontimeout = function () { finish(false, 'timeout'); };
             xhr.onerror = function () { finish(false, 'error'); };
@@ -269,6 +261,7 @@
         });
     }
 
+    // --- Оригинальные адреса проверки ---
     function healthUrlCandidates(parser) {
         var key = encodeURIComponent((parser.settings && parser.settings.key) || '');
         var type = (parser.settings && parser.settings.parser_torrent_type) || 'jackett';
@@ -282,9 +275,8 @@
             paths.push('/api/v1/health?apikey=' + key);
             paths.push('/');
         } else {
-            // Исправлено: добавлена проверка статуса healthy и настоящий поисковый запрос (вместо фейкового zzqxwv)
-            paths.push('/api/v2.0/indexers/status:healthy/results?apikey=' + key);
-            paths.push('/api/v2.0/indexers/all/results?apikey=' + key + '&Query=1080p');
+            paths.push('/api/v2.0/indexers/all/results?apikey=' + key + '&query=zzqxwv');
+            paths.push('/api/v1.0/torrents?search=zzqxwv&apikey=' + key);
             paths.push('/');
         }
 
@@ -947,7 +939,7 @@
         initSecondaryPlugin();
         initTopBarListener();
         initMobileBackProtection();
-        console.log('[CombinedParserPlugin V15 - Strict Ping & Status Fixes] Loaded successfully');
+        console.log('[CombinedParserPlugin V16 - Reverted HTML check for fallback] Loaded successfully');
     }
 
     if (!window.plugin_combined_parser_ready) {
