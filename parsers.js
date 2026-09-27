@@ -116,7 +116,7 @@
             bat_parser_proxy_desc: { en: 'Adds a proxy before the parser URL', uk: 'Добавляет прокси перед адресом парсера', zh: '在解析器URL前添加代理', ru: 'Добавляет прокси перед адресом парсера' },
             bat_parser_proxy_target: { en: 'Proxy target', uk: 'Для какого парсера (прокси)', zh: '代理目标', ru: 'Для какого парсера (прокси)' },
             bat_parser_proxy_target_desc: { en: 'Select which parser will use the proxy', uk: 'Выберите, к какому адресу добавлять прокси', zh: '选择使用代理的解析器', ru: 'Выберите, к какому адресу добавлять прокси' },
-            bat_parser_toggle_btn: { en: 'Menu icon', uk: 'Значок в меню', zh: '菜单图标', ru: 'Значок в меню' }
+            bat_parser_toggle_btn: { en: 'Menu icon', uk: 'Значок в строке', zh: '菜单图标', ru: 'Значок в строке' }
         });
     }
 
